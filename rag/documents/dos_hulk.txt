@@ -1,0 +1,20 @@
+Attack: DoS Hulk
+
+DoS Hulk is a denial-of-service attack that generates a large number of HTTP requests against a target.
+
+Indicators:
+- High volume of network traffic
+- Large number of HTTP requests
+- Abnormal request rate
+- Increased packets and bytes
+- Possible service degradation
+
+Risk:
+DoS Hulk can consume server resources and reduce service availability.
+
+Recommended response:
+- Monitor traffic
+- Identify the source device
+- Rate-limit suspicious traffic
+- Block the source when the attack is confirmed
+- Isolate the device if necessary

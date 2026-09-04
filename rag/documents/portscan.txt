@@ -1,0 +1,18 @@
+Attack: Port Scan
+
+A port scan attempts to discover open ports and services on a network device.
+
+Indicators:
+- Connections to many different ports
+- Repeated connection attempts
+- Short connection durations
+- Unusual destination-port patterns
+
+Risk:
+Port scanning can be reconnaissance before a more serious attack.
+
+Recommended response:
+- Monitor the source
+- Identify the scanning device
+- Alert the administrator
+- Restrict the source if scanning is confirmed

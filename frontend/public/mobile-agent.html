@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>JARVIS Mobile Agent</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+
+<body>
+    <h1>🧠 JARVIS Mobile Agent</h1>
+    <p id="status">Connecting...</p>
+
+    <script>
+        const SERVER = "http://10.157.15.170:5000/device";
+
+        let deviceId = localStorage.getItem("jarvis_device_id");
+
+        if (!deviceId) {
+            deviceId =
+                "Mobile-" +
+                Math.random().toString(36).substring(2, 8).toUpperCase();
+
+            localStorage.setItem("jarvis_device_id", deviceId);
+        }
+
+        async function sendTelemetry() {
+            const data = {
+                hostname: deviceId,
+                ip: "MOBILE",
+                os: navigator.platform,
+                cpu: 0,
+                ram: 0,
+                status: "ONLINE",
+                browser: navigator.userAgent
+            };
+
+            try {
+                const response = await fetch(SERVER, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify(data)
+                });
+
+                if (response.ok) {
+                    document.getElementById("status").innerText =
+                        "🟢 " + deviceId + " connected";
+                }
+            } catch (error) {
+                document.getElementById("status").innerText =
+                    "🔴 Connection failed";
+            }
+        }
+
+        sendTelemetry();
+
+        setInterval(sendTelemetry, 5000);
+    </script>
+</body>
+</html>

@@ -1,6 +1,6 @@
 <div align="center">
 
-![Header](https://capsule-render.vercel.app/api?type=waving&color=0:0A84FF,100:9C27B0&height=220&section=header&text=CyberForSight&fontSize=60&fontColor=ffffff&animation=fadeIn&fontAlignY=38&desc=AI-Based%20Network%20Attack%20Forecasting&descAlignY=58&descSize=18)
+![Header](https://capsule-render.vercel.app/api?type=waving&color=0:0A84FF,100:9C27B0&height=220&section=header&text=CyberForeSight&fontSize=60&fontColor=ffffff&animation=fadeIn&fontAlignY=38&desc=AI-Based%20Network%20Attack%20Forecasting&descAlignY=58&descSize=18)
 
 ![SIH](https://img.shields.io/badge/SIH-2026-0A84FF?style=for-the-badge)
 ![Cybersecurity](https://img.shields.io/badge/CYBERSECURITY-NTRO-E53935?style=for-the-badge)
@@ -24,17 +24,17 @@ Traditional IDS asks:
 
 > **"Is the network under attack?"**
 
-CyberForSight asks:
+CyberForeSight asks:
 
 > **"Where is the network heading next?"**
 
-CyberForSight learns how network behaviour changes over time and uses a **Temporal World Model** to simulate future network states and forecast possible attack progression.
+CyberForeSight learns how network behaviour changes over time and uses a **Temporal World Model** to simulate future network states and forecast possible attack progression.
 
 ---
 
 <div align="center">
 
-## ⚡ CyberForSight in Action
+## ⚡ CyberForeSight in Action
 
 
 [![Typing SVG](https://readme-typing-svg.demolab.com?font=Fira+Code&weight=600&size=18&pause=1000&color=9C27B0&center=true&vCenter=true&width=800&lines=Live+Traffic+%E2%86%92+Live+Forecast;Every+Second+Counts+in+Cyber+Defence)](https://git.io/typing-svg)
@@ -105,7 +105,7 @@ CyberForSight learns how network behaviour changes over time and uses a **Tempor
 
 # 🌍 World Model
 
-The **World Model is the core intelligence of CyberForSight.**
+The **World Model is the core intelligence of CyberForeSight.**
 
 Instead of simply classifying traffic, it learns how network states evolve over time.
 
@@ -152,7 +152,7 @@ Hybrid Temporal Models
 
 # 🔮 K-Step Threat Forecasting
 
-CyberForSight goes beyond:
+CyberForeSight goes beyond:
 
 ```text
 "ATTACK DETECTED"
@@ -198,7 +198,7 @@ The predicted states produce:
 
 # 🔎 Network Intelligence
 
-CyberForSight combines **flow-level + packet-level telemetry**.
+CyberForeSight combines **flow-level + packet-level telemetry**.
 
 ### Flow Features
 
@@ -338,7 +338,7 @@ Predictions can be enriched using established cybersecurity knowledge.
 
 # 🏗️ Architecture
 
-![CyberForSight Architecture](assets/architecture.png)
+![CyberForeSight Architecture](assets/architecture.png)
 
 ```text
 📡 DATA
@@ -407,7 +407,7 @@ Sensitive network data remains **off-chain**.
                     ▼
           ┌─────────────────┐
           │  🛡️ JARVIS /   │
-          │ CyberForSight   │
+          │ CyberForeSight   │
           └────────┬────────┘
                    │
           ┌────────┼────────┐
@@ -479,7 +479,7 @@ Sensitive network data remains **off-chain**.
 # 📁 Repository Structure
 
 ```text
-CyberForSight/
+CyberForeSight/
 │
 ├── 📄 README.md
 │
@@ -518,8 +518,8 @@ CyberForSight/
 ### Clone
 
 ```bash
-git clone https://github.com/YOUR-ORG/CyberForSight.git
-cd CyberForSight
+git clone https://github.com/YOUR-ORG/CyberForeSight.git
+cd CyberForeSight
 ```
 
 ### Create Environment
@@ -604,15 +604,15 @@ Then create a Pull Request.
 
 <div align="center">
 
-<a href="https://github.com/YOUR-ORG/CyberForSight/graphs/contributors">
+<a href="https://github.com/YOUR-ORG/CyberForeSight/graphs/contributors">
 
-<img src="https://contrib.rocks/image?repo=YOUR-ORG/CyberForSight">
+<img src="https://contrib.rocks/image?repo=YOUR-ORG/CyberForeSight">
 
 </a>
 
 <br>
 
-### Built collaboratively by the CyberForSight Team 🛡️
+### Built collaboratively by the CyberForeSight Team 🛡️
 
 </div>
 
@@ -660,7 +660,7 @@ Time-aware train / validation / test splits should be used to reduce temporal le
 
 # 🛡️ Responsible Use
 
-CyberForSight is intended for:
+CyberForeSight is intended for:
 
 ```text
 ✓ Defensive Cybersecurity
@@ -696,11 +696,11 @@ DEFEND
 
 <br>
 
-[![Typing SVG](https://readme-typing-svg.demolab.com?font=Fira+Code&weight=700&size=21&pause=900&color=00D9FF&center=true&vCenter=true&width=850&lines=Don't+just+detect+the+attack.;Understand+where+the+network+is+heading.;CyberForSight+%7C+Predictive+Cyber+Defence)](https://git.io/typing-svg)
+[![Typing SVG](https://readme-typing-svg.demolab.com?font=Fira+Code&weight=700&size=21&pause=900&color=00D9FF&center=true&vCenter=true&width=850&lines=Don't+just+detect+the+attack.;Understand+where+the+network+is+heading.;CyberForeSight+%7C+Predictive+Cyber+Defence)](https://git.io/typing-svg)
 
 <br>
 
-### 🛡️ CyberForSight
+### 🛡️ CyberForeSight
 
 ### **Observe • Learn • Simulate • Forecast • Explain • Defend**
 

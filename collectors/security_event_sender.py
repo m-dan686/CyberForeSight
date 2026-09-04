@@ -1,7 +1,7 @@
 import requests
 
 
-SERVER = "http://10.157.15.170:5000/security-event"
+SERVER = "http://server_url/security-event"
 
 
 def send_event(device, attack, risk, level, action):

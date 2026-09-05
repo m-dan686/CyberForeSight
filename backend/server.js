@@ -4,6 +4,7 @@ const cors = require("cors");
 const { Server } = require("socket.io");
 const { spawn } = require("child_process");
 const path = require("path");
+const fs = require("fs");
 
 const app = express();
 const server = http.createServer(app);
@@ -110,6 +111,69 @@ function runJARVIS(worldState) {
         python.stdin.end();
     });
 }
+
+
+// ==========================================
+// CYBERFORESIGHT FORECAST ARTIFACTS
+// ==========================================
+
+const MODELS_DIR = path.join(__dirname, "..", "models");
+
+function readJsonIfExists(name) {
+    const file = path.join(MODELS_DIR, name);
+    if (!fs.existsSync(file)) return null;
+    try {
+        return JSON.parse(fs.readFileSync(file, "utf8"));
+    } catch {
+        return null;
+    }
+}
+
+function csvToRows(name) {
+    const file = path.join(MODELS_DIR, name);
+    if (!fs.existsSync(file)) return null;
+    const lines = fs.readFileSync(file, "utf8").trim().split("\n");
+    if (lines.length < 2) return null;
+    const headers = lines[0].split(",");
+    return lines.slice(1).map((line) => {
+        const values = line.split(",");
+        const row = {};
+        headers.forEach((h, i) => { row[h] = values[i]; });
+        return row;
+    });
+}
+
+app.get(
+    "/forecast",
+    (req, res) => {
+
+        const forecast = {
+            info: readJsonIfExists("forecast_info.json"),
+            timeline: csvToRows("forecast_timeline.csv"),
+            rollout: csvToRows("forecast_rollout.csv"),
+            attention: readJsonIfExists("explain_attention.json"),
+            shap: readJsonIfExists("explain_shap.json"),
+            benchmarkMetrics: readJsonIfExists("benchmark_metrics.json"),
+            benchmarkCompare: csvToRows("benchmark_compare.csv")
+        };
+
+        const ready = Boolean(
+            forecast.info &&
+            forecast.timeline &&
+            forecast.rollout
+        );
+
+        res.json({
+            success: true,
+            ready,
+            demoCommand:
+                ".venv\\Scripts\\python run.py --stage features && " +
+                "run.py --stage train && run.py --stage forecast && " +
+                "run.py --stage explain && run.py --stage benchmark",
+            forecast
+        });
+    }
+);
 
 
 // ==========================================

@@ -91,3 +91,29 @@ desktop.ini
 dist/
 build/
 .cache/
+.eslintcache
+
+# ==============================
+# ML artifacts (regenerable via run.py)
+# ==============================
+
+models/*.pt
+models/*.onnx
+models/*.h5
+models/*.keras
+models/*.json
+models/*.png
+models/*.csv
+
+*.pt
+*.onnx
+*.h5
+*.keras
+
+# ==============================
+# Scratch / Notebooks
+# ==============================
+
+.tmp/
+.ipynb_checkpoints/
+notebooks/.ipynb_checkpoints/

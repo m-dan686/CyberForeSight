@@ -1,0 +1,47 @@
+/* =========================================================
+   CyberForeSight - design tokens
+   Single source of truth for both views (JARVIS + Forecast).
+   ========================================================= */
+
+:root {
+  /* surfaces */
+  --bg-deep: #020810;
+  --bg-mid: #061321;
+  --panel: rgba(6, 22, 35, 0.86);
+  --panel-translucent: rgba(7, 24, 38, 0.66);
+  --inset: rgba(1, 11, 19, 0.94);
+
+  /* lines */
+  --line: rgba(90, 205, 245, 0.16);
+  --line-strong: rgba(90, 220, 255, 0.42);
+  --line-faint: rgba(90, 205, 245, 0.08);
+
+  /* accents */
+  --cyan: #53e3ff;
+  --cyan-dim: #2f9cbd;
+  --green: #45e6a8;
+  --amber: #ffd45c;
+  --orange: #ff9a5b;
+  --red: #ff5e72;
+
+  /* text */
+  --text-hi: #eefbff;
+  --text-mid: #a6cbe0;
+  --text-dim: #62839a;
+
+  /* type */
+  --font-body: "Segoe UI Variable Text", "Segoe UI", Inter, system-ui, Arial, sans-serif;
+  --font-mono: "Cascadia Code", "JetBrains Mono", ui-monospace, Consolas, monospace;
+
+  /* shape */
+  --radius-lg: 16px;
+  --radius-md: 12px;
+  --radius-sm: 9px;
+
+  /* effects */
+  --glow-cyan: 0 0 20px rgba(83, 227, 255, 0.35);
+  --glow-cyan-soft: 0 0 12px rgba(83, 227, 255, 0.16);
+  --shadow-panel: 0 22px 50px rgba(0, 0, 0, 0.32);
+
+  --track: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}

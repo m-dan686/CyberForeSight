@@ -1,0 +1,444 @@
+/* =========================================================
+   CYBERFORESIGHT FORECAST DASHBOARD
+   Harmonized with theme.css tokens.
+   ========================================================= */
+
+.forecast-view {
+  width: 100%;
+  height: calc(100vh - 116px);
+  overflow-y: auto;
+  padding: 26px 34px 40px;
+}
+
+.forecast-view::-webkit-scrollbar {
+  width: 8px;
+}
+
+.forecast-view::-webkit-scrollbar-thumb {
+  background: rgba(83, 227, 255, 0.25);
+  border-radius: 999px;
+}
+
+.forecast-view::-webkit-scrollbar-thumb:hover {
+  background: rgba(83, 227, 255, 0.4);
+}
+
+.f-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+
+.f-head h2 {
+  margin: 0;
+  font-size: 25px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  color: var(--text-hi);
+}
+
+.f-head p {
+  margin: 4px 0 0;
+  color: var(--text-mid);
+  font-size: 13px;
+}
+
+.f-ready {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--green);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 1.4px;
+  border: 1px solid rgba(69, 230, 168, 0.35);
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(69, 230, 168, 0.06);
+}
+
+/* =========================================================
+   KPI GRID
+   ========================================================= */
+
+.f-kpis {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+@media (max-width: 1100px) {
+  .f-kpis {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.f-kpi {
+  position: relative;
+  min-width: 0;
+  background: var(--panel-translucent);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+  overflow: hidden;
+  backdrop-filter: blur(14px);
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.04);
+  animation: panelIn 0.45s var(--track) both;
+}
+
+.f-kpi:nth-child(2) {
+  animation-delay: 0.04s;
+}
+
+.f-kpi:nth-child(3) {
+  animation-delay: 0.08s;
+}
+
+.f-kpi:nth-child(4) {
+  animation-delay: 0.12s;
+}
+
+.f-kpi:nth-child(5) {
+  animation-delay: 0.16s;
+}
+
+.f-kpi:nth-child(6) {
+  animation-delay: 0.2s;
+}
+
+.f-kpi::after {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--cyan), transparent 85%);
+  opacity: 0.85;
+}
+
+.f-kpi.k-warn::after {
+  background: linear-gradient(90deg, var(--amber), transparent 85%);
+}
+
+.f-kpi.k-attack::after {
+  background: linear-gradient(90deg, var(--red), transparent 85%);
+}
+
+.f-kpi-label {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 1.2px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.f-kpi-value {
+  display: block;
+  margin-top: 8px;
+  font-family: var(--font-mono);
+  font-size: 19px;
+  font-weight: 600;
+  color: var(--text-hi);
+  font-variant-numeric: tabular-nums;
+}
+
+/* =========================================================
+   CARDS
+   ========================================================= */
+
+.f-card {
+  position: relative;
+  background: var(--panel-translucent);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: 18px 20px;
+  margin-bottom: 16px;
+  backdrop-filter: blur(16px);
+  box-shadow:
+    inset 0 1px rgba(255, 255, 255, 0.04),
+    var(--shadow-panel);
+  animation: panelIn 0.5s var(--track) both;
+}
+
+.f-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 1px;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  background: linear-gradient(90deg, transparent, rgba(83, 227, 255, 0.45), transparent);
+  pointer-events: none;
+}
+
+.f-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.f-card-head h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.6px;
+  color: var(--text-hi);
+}
+
+.f-badge {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-dim);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 3px 10px;
+  white-space: nowrap;
+}
+
+.f-sub {
+  color: var(--text-mid);
+  font-size: 13px;
+  margin: 10px 0 14px;
+}
+
+.f-sub b {
+  color: var(--cyan);
+  font-family: var(--font-mono);
+}
+
+/* =========================================================
+   CHARTS
+   ========================================================= */
+
+.f-chart {
+  width: 100%;
+  height: auto;
+}
+
+.f-axis {
+  font-size: 10px;
+  fill: var(--text-dim);
+  font-family: var(--font-mono);
+}
+
+/* =========================================================
+   GRIDS
+   ========================================================= */
+
+.f-grid2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+@media (max-width: 1100px) {
+  .f-grid2 {
+    grid-template-columns: 1fr;
+  }
+}
+
+.f-split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 26px;
+}
+
+@media (max-width: 1100px) {
+  .f-split {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* =========================================================
+   BARS
+   ========================================================= */
+
+.f-bar-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 9px;
+}
+
+.f-bar-label {
+  width: 150px;
+  font-size: 11px;
+  color: var(--text-mid);
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.f-bar-track {
+  flex: 1;
+  height: 14px;
+  background: rgba(1, 12, 21, 0.7);
+  border-radius: 4px;
+  overflow: hidden;
+  display: flex;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+.f-bar {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.4s ease;
+}
+
+.b-attack {
+  background: linear-gradient(90deg, var(--red), #ff8590);
+  box-shadow: 0 0 8px rgba(255, 94, 114, 0.4);
+}
+
+.b-benign {
+  background: linear-gradient(90deg, #16b05b, var(--green));
+}
+
+.b-bg {
+  background: linear-gradient(90deg, #2a9ac0, var(--cyan));
+}
+
+.f-tag {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.6px;
+  color: var(--text-dim);
+  width: 56px;
+}
+
+.tag-attack {
+  color: var(--red);
+  font-weight: 700;
+}
+
+.tag-benign {
+  color: var(--green);
+  font-weight: 700;
+}
+
+.f-bar-val {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-mid);
+  width: 54px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* =========================================================
+   CMD / ERROR / EMPTY
+   ========================================================= */
+
+.f-cmd {
+  background: var(--inset);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.9;
+  color: #7bf1a8;
+  overflow-x: auto;
+}
+
+.f-error h3 {
+  color: #ff8b96;
+}
+
+.f-empty {
+  color: var(--text-dim);
+  padding: 30px 0;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.f-list {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--text-mid);
+  font-size: 13px;
+  line-height: 1.9;
+}
+
+.f-list b {
+  color: var(--cyan);
+}
+
+.f-list code {
+  font-family: var(--font-mono);
+  background: rgba(83, 227, 255, 0.08);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 1px 6px;
+  color: var(--cyan);
+  font-size: 12px;
+}
+
+/* =========================================================
+   TABLE
+   ========================================================= */
+
+.f-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 10px;
+  font-size: 13px;
+}
+
+.f-table th,
+.f-table td {
+  text-align: left;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--line-faint);
+}
+
+.f-table th {
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.f-table td {
+  color: var(--text-mid);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.f-table td b {
+  color: var(--text-hi);
+}
+
+/* =========================================================
+   BENCH
+   ========================================================= */
+
+.f-bench {
+  margin-top: 16px;
+}
+
+.f-bench-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 7px;
+  height: 22px;
+}
+
+.f-bench-lines {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}

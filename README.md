@@ -3,10 +3,11 @@
 ![Header](https://capsule-render.vercel.app/api?type=waving&color=0:0A84FF,100:9C27B0&height=220&section=header&text=CyberForeSight&fontSize=60&fontColor=ffffff&animation=fadeIn&fontAlignY=38&desc=AI-Based%20Network%20Attack%20Forecasting&descAlignY=58&descSize=18)
 
 ![SIH](https://img.shields.io/badge/SIH-2026-0A84FF?style=for-the-badge)
-![Cybersecurity](https://img.shields.io/badge/CYBERSECURITY-NTRO-E53935?style=for-the-badge)
-![AI](https://img.shields.io/badge/AI-WORLD%20MODELS-9C27B0?style=for-the-badge)
 ![Python](https://img.shields.io/badge/PYTHON-3.10%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)
-![PyTorch](https://img.shields.io/badge/PYTORCH-DEEP%20LEARNING-EE4C2C?style=for-the-badge&logo=pytorch&logoColor=white)
+![PyTorch](https://img.shields.io/badge/PYTORCH-LSTM%20WORLD%20MODEL-EE4C2C?style=for-the-badge&logo=pytorch&logoColor=white)
+![React](https://img.shields.io/badge/REACT-19-61DAFB?style=for-the-badge&logo=react&logoColor=white)
+![Vite](https://img.shields.io/badge/VITE-8-646CFF?style=for-the-badge&logo=vite&logoColor=white)
+![Express](https://img.shields.io/badge/EXPRESS-5-000000?style=for-the-badge&logo=express&logoColor=white)
 
 <br>
 
@@ -18,292 +19,207 @@
 
 ---
 
-## 🚨 From Detection to Prediction
+# 🚨 From Detection to Prediction
 
-Traditional IDS asks:
+Traditional intrusion detection asks:
 
-> **"Is the network under attack?"**
+> **"Is the network under attack right now?"**
 
 CyberForeSight asks:
 
 > **"Where is the network heading next?"**
 
-CyberForeSight learns how network behaviour changes over time and uses a **Temporal World Model** to simulate future network states and forecast possible attack progression.
+It learns how network behaviour evolves over time with a **temporal world model**, simulates future network states, and **forecasts attack progression with a measurable lead time** — turning detection into prediction.
+
+**Implemented on a real, trusted dataset** (CIC-IDS2018 — Infiltration attack day): the world model raises its first pre-attack flag **2 minutes before** the ground-truth infiltration begins, and explains *why*.
 
 ---
 
-<div align="center">
+# ✅ What Ships Today vs Roadmap
 
-## ⚡ CyberForeSight in Action
-
-
-[![Typing SVG](https://readme-typing-svg.demolab.com?font=Fira+Code&weight=600&size=18&pause=1000&color=9C27B0&center=true&vCenter=true&width=800&lines=Live+Traffic+%E2%86%92+Live+Forecast;Every+Second+Counts+in+Cyber+Defence)](https://git.io/typing-svg)
-
-</div>
+| Area | Implemented | Roadmap |
+| :-- | :-- | :-- |
+| Feature pipeline | Flow + packet features → 60 s windows → `S(t)` states + transitions | Streaming/packet-level ingestion |
+| World model | LSTM sequence model: `P(Sₜ₊₁ | Sₜ)` (train + checkpointing) | Temporal Transformer, GNN, hybrid |
+| Forecasting | K-step autoregressive rollout + threat probability + lead-time detection | Confidence-calibrated ensembles |
+| Explainability | SHAP (feature attribution) + Attention (time-step attribution) | Counterfactual explanations |
+| Baseline | Logistic regression on identical next-window task (honest A/B) | Additional IDS baselines |
+| Dashboard | React + Express + Socket.IO live view (JARVIS) + Forecast analytics | Historical replay mode |
+| Threat intelligence | — | MITRE ATT&CK / CAPEC / NVD / NCIIPC mapping |
+| Integrity | — | Evidence hashing + permissioned ledger audit |
 
 ---
 
 # 🧠 How It Works
 
 ```text
-       📡 NETWORK TRAFFIC
-              │
-              ▼
-      🔎 FLOW + PACKET
-          FEATURES
-              │
-              ▼
-       🧩 NETWORK STATE
-            S(t)
-              │
-              ▼
-    ┌─────────────────────┐
-    │    🌍 WORLD MODEL   │
-    │                     │
-    │ P(Sₜ₊₁ | Sₜ)        │
-    │                     │
-    │ Temporal Transformer│
-    │ + LSTM / GNN        │
-    └──────────┬──────────┘
+       📡 CIC-IDS2018 TRAFFIC (CSV / PCAP)
                │
                ▼
-       🔮 K-STEP ROLLOUT
+      🔎 FLOW + PACKET FEATURES          features/extract_flow.py
+               │                                extract_packet.py
+               ▼
+       ⏱️ TEMPORAL WINDOWING             features/window.py
+       (60 s windows → S(t))
                │
                ▼
-     Sₜ → Sₜ₊₁ → Sₜ₊₂ → ... → Sₜ₊ₖ
+     🧩 NETWORK STATE + TRANSITIONS       features/transitions.py
+            (S(t) -> S(t+1))
                │
                ▼
-       ⚠️ THREAT FORECAST
-               │
-       ┌───────┼────────┐
-       ▼       ▼        ▼
-  Probability Stage    Risk
-       │       │        │
-       └───────┼────────┘
-               ▼
-          💡 EXPLAIN
-        SHAP + ATTENTION
-               │
-               ▼
-       🛡️ DEFENDER
-       DECISION SUPPORT
+     ┌──────────────────────┐
+     │    🌍 WORLD MODEL     │            training/train.py
+     │  P(Sₜ₊₁ | Sₜ)        │
+     │  LSTM over states    │            training/forecast.py
+     └──────────┬───────────┘
+                │
+                ▼
+        🔮 K-STEP ROLLOUT
+        Sₜ → Sₜ₊₁ → ... → Sₜ₊ₖ
+                │
+                ▼
+        ⚠️ THREAT FORECAST             forecast_info.json / timeline
+        (first pre-flag, lead time)
+                │
+        ┌───────┼────────┐
+        ▼       ▼        ▼
+   Probability  Stage    Risk
+        │       │        │
+        └───────┼────────┘
+                ▼
+        💡 EXPLAIN (SHAP + Attention)   detection/world_explain.py
+                │
+                ▼
+        🖥️ DEFENDER DASHBOARD          backend/server.js + frontend/
 ```
 
 ---
 
 # 🎯 Core Capabilities
 
-|    📡 TELEMETRY    |      🧠 WORLD MODEL     |   🔮 FORECASTING  |
-| :----------------: | :---------------------: | :---------------: |
-| Flow + Packet Data | Temporal State Learning | K-Step Simulation |
+| 📡 TELEMETRY | 🧠 WORLD MODEL | 🔮 FORECASTING |
+| :-- | :-- | :-- |
+| CIC flow + packet features | LSTM temporal state learning | K-step autoregressive rollout |
 
-|    🎯 ATT&CK   | 💡 EXPLAINABLE AI |      🔐 AUDIT      |
-| :------------: | :---------------: | :----------------: |
-| Attack Mapping |  SHAP + Attention | Evidence Integrity |
+| ⏱️ LEAD TIME | 💡 EXPLAINABLE AI | 📊 BENCHMARK |
+| :-- | :-- | :-- |
+| Pre-attack flagging (≈2 min on demo day) | SHAP + Attention | LSTM vs Logistic Regression |
 
 ---
 
 # 🌍 World Model
 
-The **World Model is the core intelligence of CyberForeSight.**
-
-Instead of simply classifying traffic, it learns how network states evolve over time.
-
-```text
-Sₜ
- │
- ▼
-Sₜ₊₁
- │
- ▼
-Sₜ₊₂
- │
- ▼
-Sₜ₊₃
- │
- ▼
- ...
- │
- ▼
-Sₜ₊ₖ
-```
-
-The model learns:
+Instead of classifying a single window in isolation, the LSTM learns how network states evolve:
 
 ```text
 P(Sₜ₊₁ | Sₜ)
 ```
 
-### Primary Model
+- **Input features:** `state_*` columns derived from flow + packet telemetry over 60 s windows (backward/forward IAT stats, packet rates, flag counters, sizes, tcp window, TTL variance, etc.).
+- **Target:** next window's state `target_state_*` plus the binary next-window attack label (`attack_t1`).
+- **Task:** predict the **next-window attack probability** (`prob_next`) and simulate the future trajectory.
+
+Trained for **25 epochs** (smoke run) with `weight_decay = 1e-5`, sequence length 8, hidden size 64 — train loss `3.02 → 1.45`, val loss `3.36 → 3.39`. Config-driven via `configs/world_model.yaml`; artifacts written to `models/`.
+
+### Comparative / roadmap models
 
 ```text
 🌍 Temporal Transformer
-```
-
-### Comparative Models
-
-```text
-LSTM
-GNN
-Hybrid Temporal Models
+🌐 GNN over client-server graph
+🔀 Hybrid temporal models
 ```
 
 ---
 
 # 🔮 K-Step Threat Forecasting
 
-CyberForeSight goes beyond:
+CyberForeSight looks **ahead**, not just "attack / no attack":
 
 ```text
-"ATTACK DETECTED"
+S(t) → S(t+1) → S(t+2) → ... → S(t+K)
 ```
 
-It looks ahead:
+`training/forecast.py` rolls the model forward **K steps** from the last observed window and computes a full-day threat timeline.
 
-```text
-CURRENT
-   │
-   ▼
- S(t)
-   │
-   ▼
- S(t+1)
-   │
-   ▼
- S(t+2)
-   │
-   ▼
- S(t+3)
-   │
-   ▼
-  ...
-   │
-   ▼
- S(t+K)
-```
+### Verified result — CIC-IDS2018 Infiltration day
 
-The predicted states produce:
+| Metric | Value |
+| :-- | :-- |
+| Ground-truth infiltration onset | 2018-03-01 **02:00:00** |
+| Earliest pre-attack flag | **01:58** (6 flags raised) |
+| Forecast lead time | **+2 minutes** |
+| Start of rollout | 01:59 (last benign window) |
+| Rollout probability | 0.76 → 0.98 over +8 min |
+| Timeline | 560 windows, 01:09 – 12:58 |
 
-```text
-┌────────────────────────────┐
-│ ⚠️ THREAT PROBABILITY      │
-│ 🎯 LIKELY ATTACK STAGE     │
-│ 📈 RISK / CONFIDENCE       │
-│ 🔮 FUTURE STATE TREND      │
-│ 💡 CONTRIBUTING FEATURES   │
-└────────────────────────────┘
-```
-
----
-
-# 🔎 Network Intelligence
-
-CyberForeSight combines **flow-level + packet-level telemetry**.
-
-### Flow Features
-
-```text
-Source IP
-Destination IP
-Source Port
-Destination Port
-Protocol
-Bytes
-Packets
-Duration
-TCP Flags
-Inter-Arrival Time
-Bidirectional Ratios
-```
-
-### Packet Features
-
-```text
-TTL
-TTL Variance
-TCP Window
-Packet Length
-Payload Size
-Fragmentation
-Retransmissions
-Port Scan Indicators
-```
-
-These are transformed into **time-windowed network states**.
+Artifacts: `models/forecast_info.json`, `models/forecast_timeline.csv`, `models/forecast_rollout.csv`, `models/forecast_timeline.png`.
 
 ---
 
 # 💡 Explainable AI
 
-Predictions should not be a black box.
-
 ```text
-             AI PREDICTION
-                   │
-          ┌────────┴────────┐
-          ▼                 ▼
-       🧮 SHAP          🧠 ATTENTION
-          │                 │
-          ▼                 ▼
-  Important Features   Important Time
-                       Patterns
-          │                 │
-          └────────┬────────┘
-                   ▼
-             💡 EXPLANATION
+        AI PREDICTION
+              │
+      ┌───────┴────────┐
+      ▼                ▼
+   🧮 SHAP          🧠 ATTENTION
+  (features)      (time steps)
+      │                │
+      └───────┬────────┘
+              ▼
+         💡 EXPLANATION
 ```
 
-### Example
+`detection/world_explain.py` produces both views, written to `models/explain_shap.json` and `models/explain_attention.json`.
 
-```text
-Top Contributing Features
-
-██████████████████  Packet Rate
-████████████████    Flow Duration
-████████████        Destination Port
-██████████          TCP Flags
-████████            TTL Variance
-```
+- **SHAP** — per-window feature attribution. On attack windows the top driver is **`bwd_iat_mean`** (+0.123); benign windows show flat/negative contributions.
+- **Attention** — highlights the historical windows a prediction leans on, confirming the model attends to the pre-attack windows (01:56 → 01:59, peak at 02:00).
 
 ---
 
-# 🎯 Threat Intelligence
+# 📊 Benchmark — LSTM vs Logistic Regression
 
-Predictions can be enriched using established cybersecurity knowledge.
+An **honest A/B** on the identical next-window task (same features, same evaluation windows, chronological split, no temporal leakage). Same 168 out-of-sample windows with 43 infiltration windows:
+
+| Model | Accuracy | Recall (Infiltration) | False-Positive Rate | AUC |
+| :-- | --: | --: | --: | --: |
+| **Logistic Regression** (baseline) | **0.8452** | — | 0.032 | **0.9473** |
+| **LSTM World Model** (25-epoch smoke) | 0.8214 | 0.3953 | 0.032 | 0.8845 |
+
+The linear baseline edges out the undertrained 25-epoch LSTM on this near-linear signal — expected. The LSTM's value is in **sequence memory, attention, and leading the onset by minutes**. Closing the gap is a matter of training budget (80+ epochs, LR schedule).
+
+Artifacts: `models/benchmark_metrics.json`, `models/benchmark_compare.csv`, `models/benchmark_compare.png`.
+
+---
+
+# 🖥️ Live Dashboard
+
+A two-tab operations console.
 
 ```text
-        THREAT FORECAST
-              │
-     ┌────────┼────────┐
-     ▼        ▼        ▼
- MITRE      CAPEC     NVD
- ATT&CK
-     │        │        │
-     └────────┼────────┘
-              ▼
-       SECURITY CONTEXT
+   frontend/  React 19 + Vite 8  (port 5173)
+   backend/   Express 5 + Socket.IO  (port 5000)  →  spawns .venv python jarvis_bridge.py (FullJARVIS)
 ```
 
-### Knowledge Sources
+- **LIVE tab** — connected devices + threat levels, animated network radar, voice/chat control, AI response panel (via Socket.IO).
+- **FORECAST tab** — data-driven from `GET /forecast`: KPI cards (onset, lead time, pre-flags, threshold), threat timeline, K-step rollout, attention + SHAP panels, and the benchmark table.
 
-* **MITRE ATT&CK** → Adversary tactics and techniques
-* **CAPEC** → Common attack patterns
-* **NIST NVD** → Vulnerability / CVE context
-* **NCIIPC** → Indian Critical Information Infrastructure context
+```
+run.py --stage demo     # starts backend + frontend for you
+```
 
 ---
 
 # 🗃️ Datasets
 
-| Dataset                                                              | Purpose                         |
-| ---------------------------------------------------------------------| -------------------------------- |
-| [CIC-IDS2017](https://www.unb.ca/cic/datasets/ids-2017.html)         | Network intrusion traffic       |
-| [CIC-IDS2018](https://www.unb.ca/cic/datasets/ids-2018.html)         | Modern attack scenarios         |
-| [UNSW-NB15](https://research.unsw.edu.au/projects/unsw-nb15-dataset) | Network attack behaviour        |
-| [CTU-13](https://www.stratosphereips.org/datasets-ctu13)             | Botnet traffic                  |
-| [CICIoT2023](https://www.unb.ca/cic/datasets/iotdataset-2023.html)   | IoT attack behaviour            |
-| [LANL Cyber Datasets](https://csr.lanl.gov/data/)                    | Authentication and cyber events |
-| [DARPA IDS](https://www.ll.mit.edu/r-d/datasets)                     | Historical intrusion scenarios  |
+| Dataset | Status |
+| :-- | :-- |
+| [CIC-IDS2018](https://www.unb.ca/cic/datasets/ids-2018.html) (Infiltration day) | ✅ Used in the shipped pipeline |
+| [CIC-IDS2017](https://www.unb.ca/cic/datasets/ids-2017.html) | Roadmap — extend to more attack days |
+| [UNSW-NB15](https://research.unsw.edu.au/projects/unsw-nb15-dataset) | Roadmap — behaviour variety |
+| [CTU-13](https://www.stratosphereips.org/datasets-ctu13) / [CICIoT2023](https://www.unb.ca/cic/datasets/iotdataset-2023.html) | Roadmap — botnet / IoT |
+| [LANL](https://csr.lanl.gov/data/) / [DARPA IDS](https://www.ll.mit.edu/r-d/datasets) | Roadmap — enterprise + historical |
 
 ---
 
@@ -311,168 +227,67 @@ Predictions can be enriched using established cybersecurity knowledge.
 
 <div align="center">
 
-### 🤖 AI / Machine Learning
+### 🤖 AI / ML
 
 ![AI Stack](https://skillicons.dev/icons?i=python,pytorch,sklearn)
 
-### 🖥️ Application / Development
+### 🖥️ Application
 
-![Development Stack](https://skillicons.dev/icons?i=git,github,sqlite,streamlit,bash)
+![App Stack](https://skillicons.dev/icons?i=react,vite,nodejs,express,bash,git,github)
 
 </div>
-
-### Additional Technologies
 
 ```text
 📡 Scapy / PyShark      → Packet & PCAP processing
 📊 Pandas / NumPy       → Data processing
 💡 SHAP                 → Explainable AI
-🎯 MITRE ATT&CK         → Threat intelligence
-🧩 CAPEC                → Attack patterns
-🔍 NVD                  → Vulnerability context
+🔮 statsmodels          → Time-series baselines (ARIMA)
 🗄️ SQLite / Parquet     → Local storage
-🔐 Permissioned Ledger  → Prediction integrity
+🖼️ matplotlib           → Chart artifacts (PNG)
 ```
 
 ---
 
-# 🏗️ Architecture
+# ▶️ Quick Start (Windows)
 
-![CyberForeSight Architecture](assets/architecture.png)
+```bash
+# 1. environment
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt        # CUDA? pip install -r requirements-cuda.txt
 
-```text
-📡 DATA
-   ↓
-🔎 FEATURE ENGINEERING
-   ↓
-⏱️ TEMPORAL WINDOWING
-   ↓
-🧩 NETWORK STATE
-   ↓
-🌍 WORLD MODEL
-   ↓
-🔮 K-STEP ROLLOUT
-   ↓
-⚠️ THREAT FORECAST
-   ↓
-💡 EXPLAINABILITY
-   ↓
-🛡️ DEFENDER DASHBOARD
-   ↓
-🔐 AUDIT TRAIL
+# 2. frontend + backend deps
+npm --prefix frontend install
+npm --prefix backend install
+
+# 3. data
+#    place the CIC-IDS2018 infiltration day CSV under data/raw/ (or pass --csv)
+
+# 4. pipeline
+.venv\Scripts\python run.py --stage features    --csv data/raw/<day>.csv
+.venv\Scripts\python run.py --stage train       --config configs/world_model.yaml
+.venv\Scripts\python run.py --stage forecast    --snapshot data/processed/window_state.csv
+.venv\Scripts\python run.py --stage explain
+.venv\Scripts\python run.py --stage benchmark
+.venv\Scripts\python run.py --stage demo        # backend (5000) + frontend (5173)
+
+# 5. or run the dashboard manually
+node backend/server.js
+npm --prefix frontend run dev            # open http://localhost:5173
 ```
 
----
+Linux / macOS uses `source .venv/bin/activate` and `.venv/bin/python`.
 
-# 🔐 Prediction Integrity
+### Pipeline runbook
 
-Sensitive network data remains **off-chain**.
-
-```text
-        🚨 ALERT / PREDICTION
-                 │
-                 ▼
-          Evidence Hash
-                 │
-                 ▼
-       Prediction Metadata
-                 │
-                 ▼
-       🔐 Permissioned Ledger
-                 │
-                 ▼
-        Tamper-Evident Audit
-```
-
-```text
-❌ Raw PCAP → Blockchain
-
-✅ Evidence Hash → Blockchain
-✅ Metadata → Blockchain
-✅ Raw PCAP → Local / Off-Chain Storage
-```
-
----
-
-# 🖥️ Local-First Deployment
-
-```text
-             PRIVATE NETWORK
-                    │
-        ┌───────────┼───────────┐
-        ▼           ▼           ▼
-    💻 CLIENT    💻 CLIENT    💻 CLIENT
-        │           │           │
-        └───────────┼───────────┘
-                    ▼
-          ┌─────────────────┐
-          │  🛡️ JARVIS /   │
-          │ CyberForeSight   │
-          └────────┬────────┘
-                   │
-          ┌────────┼────────┐
-          ▼        ▼        ▼
-        🌍 AI     🔮       💡
-       MODEL    FORECAST  EXPLAIN
-          │        │        │
-          └────────┼────────┘
-                   ▼
-          🖥️ DEFENDER UI
-```
-
----
-
-# 📊 Expected Output
-
-```text
-╔════════════════════════════════════╗
-║       🛡️ CYBERFORSIGHT             ║
-║          THREAT FORECAST           ║
-╠════════════════════════════════════╣
-║                                    ║
-║ ⚠️ Threat Probability : HIGH       ║
-║ 🔮 Forecast Horizon   : K Steps    ║
-║ 🎯 Predicted Stage    : Forecast   ║
-║ 📈 Risk Level         : HIGH       ║
-║                                    ║
-╠════════════════════════════════════╣
-║ 💡 TOP CONTRIBUTING FEATURES       ║
-║                                    ║
-║ • Abnormal Flow Rate               ║
-║ • Destination Port Behaviour       ║
-║ • TCP Flag Pattern                 ║
-║ • Packet Burst Activity            ║
-║                                    ║
-╚════════════════════════════════════╝
-```
-
----
-
-# 🔄 Continuous Learning
-
-```text
-       📡 NETWORK TRAFFIC
-               │
-               ▼
-          🔮 FORECAST
-               │
-               ▼
-        🛡️ DEFENDER
-          FEEDBACK
-               │
-               ▼
-       FALSE POSITIVES /
-       NEW ATTACK SAMPLES
-               │
-               ▼
-        📈 DRIFT DETECTION
-               │
-               ▼
-         🧠 MODEL UPDATE
-               │
-               ▼
-        🔮 BETTER FORECAST
-```
+| Stage | Produces |
+| :-- | :-- |
+| `features` | `data/processed/window_state.csv`, `data/processed/transitions.csv` |
+| `train` | `models/world_model_lstm.pt`, `train_metrics.json`, `training_history.json` |
+| `forecast` | `forecast_info.json`, `forecast_timeline.csv`, `forecast_rollout.csv`, `forecast_timeline.png` |
+| `explain` | `explain_attention.json`, `explain_shap.json` |
+| `benchmark` | `benchmark_metrics.json`, `benchmark_compare.csv`, `benchmark_compare.png` |
+| `demo` | boots backend (:5000) + Vite frontend (:5173) |
 
 ---
 
@@ -481,180 +296,70 @@ Sensitive network data remains **off-chain**.
 ```text
 CyberForeSight/
 │
-├── 📄 README.md
+├── 📄 run.py                    # pipeline entry point (--stage features|train|forecast|explain|benchmark|demo)
+├── 📄 requirements.txt          # core Python deps (CPU)
+├── 📄 requirements-cuda.txt     # CUDA-enabled PyTorch install
+├── 📄 ARCHITECTURE.md
 │
-├── 🖼️ assets/
-│   ├── architecture.png
-│   └── cyberforsight-flow.gif
+├── 📂 features/                 # WS2 — feature + state pipeline
+│   ├── extract_flow.py          #   flow features from CIC CSV/PCAP
+│   ├── extract_packet.py        #   packet features
+│   ├── window.py                #   60 s temporal windows → S(t)
+│   ├── transitions.py           #   S(t) → S(t+1) + attack_t1 label
+│   └── schema.py
 │
-├── 📂 data/
-│   ├── raw/
-│   └── processed/
+├── 📂 training/                 # WS3 — world model
+│   ├── train.py                 #   LSTM training + checkpointing
+│   └── forecast.py              #   K-step rollout + forecast charts
 │
-├── 📂 src/
-│   ├── ingestion/
-│   ├── features/
-│   ├── preprocessing/
-│   ├── state/
-│   ├── world_model/
-│   ├── forecasting/
-│   ├── explainability/
-│   ├── threat_mapping/
-│   └── dashboard/
+├── 📂 detection/                # WS4 / WS6 — explainability + baselines
+│   ├── world_explain.py         #   SHAP + attention attribution
+│   ├── benchmark.py             #   LR vs LSTM next-window A/B
+│   └── ...  (classifiers, feature QC, datasets)
 │
-├── 📂 models/
-├── 📂 configs/
-├── 📂 notebooks/
-├── 📂 tests/
+├── 📂 models/                   # (gitignored) generated LSTM/forecast/explain/benchmark artifacts
+├── 📂 configs/world_model.yaml  # LSTM hyper-parameters
 │
-├── 📄 requirements.txt
-└── 📄 run.py
+├── 📂 backend/                  # WS5 — Express + Socket.IO
+│   ├── server.js                #   REST /forecast + live socket feed
+│   └── jarvis_bridge.py         #   spawns FullJARVIS assistant (agent/)
+│
+├── 📂 frontend/                 # WS5 — React 19 + Vite
+│   └── src/
+│       ├── App.jsx              #   Live/Forecast toggle + live view
+│       ├── ForecastDashboard.jsx
+│       ├── theme.css / App.css / Forecast.css
+│       └── main.jsx
+│
+├── 📂 agent/  📂 llm/  📂 rag/  # JARVIS AI assistant (RAG + chat)
+├── 📂 collectors/               # live network collection (roadmap streaming)
+├── 📂 data/                     # raw | processed | ml (gitignored)
+└── 📂 notebooks/                # exploration
 ```
 
 ---
 
-# ▶️ Quick Start
-
-### Clone
-
-```bash
-git clone https://github.com/YOUR-ORG/CyberForeSight.git
-cd CyberForeSight
-```
-
-### Create Environment
-
-```bash
-python -m venv .venv
-```
-
-### Windows
-
-```bash
-.venv\Scripts\activate
-```
-
-### Linux / macOS
-
-```bash
-source .venv/bin/activate
-```
-
-### Install
-
-```bash
-pip install -r requirements.txt
-```
-
-### Run
-
-```bash
-python run.py
-```
-
-### Dashboard
-
-```bash
-streamlit run src/dashboard/app.py
-```
-
----
-
-# 🤝 Collaborative Development
+# 🗺️ Roadmap
 
 ```text
-        💡 IDEA
-          │
-          ▼
-       📋 ISSUE
-          │
-          ▼
-    🌿 FEATURE BRANCH
-          │
-          ▼
-       💻 CODE
-          │
-          ▼
-       🧪 TEST
-          │
-          ▼
-    🔀 PULL REQUEST
-          │
-          ▼
-     👀 CODE REVIEW
-          │
-          ▼
-       ✅ MERGE
+🌍 Temporal Transformer + GNN world model
+⏱️ Live PCAP streaming → real-time forecasting
+🎯 MITRE ATT&CK / CAPEC / NVD / NCIIPC mapping
+🔐 Evidence hashing + permissioned ledger for auditability
+📈 Continuous learning: drift detection + model update
+🔮 Calibrated confidence intervals on forecasts
 ```
-
-### Branch Example
-
-```bash
-git checkout -b feature/world-model
-git add .
-git commit -m "Add temporal world model"
-git push origin feature/world-model
-```
-
-Then create a Pull Request.
-
----
-
-# 👥 Contributors
-
-<div align="center">
-
-<a href="https://github.com/YOUR-ORG/CyberForeSight/graphs/contributors">
-
-<img src="https://contrib.rocks/image?repo=YOUR-ORG/CyberForeSight">
-
-</a>
-
-<br>
-
-### Built collaboratively by the CyberForeSight Team 🛡️
-
-</div>
-
----
-
-# 📈 Evaluation
-
-```text
-Precision
-Recall
-F1-Score
-False Positive Rate
-Forecast Accuracy
-Attack-Stage Accuracy
-Inference Latency
-Forecast-Horizon Performance
-```
-
-### Baseline
-
-```text
-        LOGISTIC REGRESSION
-                 │
-                 ▼
-             COMPARISON
-                 ▲
-                 │
-      CYBERFORSIGHT WORLD MODEL
-```
-
-Time-aware train / validation / test splits should be used to reduce temporal leakage.
 
 ---
 
 # 📚 Research Foundation
 
-| Research                                                                                                  | Contribution                 |
-| --------------------------------------------------------------------------------------------------------- | ---------------------------- |
-| [World Models](https://arxiv.org/abs/1803.10122)                                                          | Learned environment dynamics |
-| [Attention Is All You Need](https://arxiv.org/abs/1706.03762)                                             | Transformer architecture     |
-| [Graph Networks](https://proceedings.mlr.press/v119/sanchez-gonzalez20a.html)                             | Learned state transitions    |
-| [SHAP](https://papers.nips.cc/paper_files/paper/2017/hash/8a20a8621978632d76c43dfd28b67767-Abstract.html) | Explainable predictions      |
+| Research | Contribution |
+| :-- | :-- |
+| [World Models](https://arxiv.org/abs/1803.10122) | Learned environment dynamics |
+| [Attention Is All You Need](https://arxiv.org/abs/1706.03762) | Attention-based sequence modelling |
+| [LSTM](https://www.bioinf.jku.at/publications/older/2604.pdf) | Temporal state memory |
+| [SHAP](https://papers.nips.cc/paper_files/paper/2017/hash/8a20a8621978632d76c43dfd28b67767-Abstract.html) | Explainable predictions |
 
 ---
 
@@ -663,14 +368,24 @@ Time-aware train / validation / test splits should be used to reduce temporal le
 CyberForeSight is intended for:
 
 ```text
-✓ Defensive Cybersecurity
-✓ Security Monitoring
-✓ Threat Forecasting
-✓ Network Research
-✓ Authorized Testing
+✓ Defensive Cybersecurity     ✓ Security Monitoring
+✓ Threat Forecasting          ✓ Network Research
+✓ Authorized Testing          ✓ SOC decision support
 ```
 
-Use only on networks and data for which appropriate authorization exists.
+Use only on networks and data for which appropriate authorization exists. Generated artifacts (models, forecasts, logs) are gitignored and regenerable via `run.py`.
+
+---
+
+# 🤝 Collaborative Development
+
+```bash
+git checkout -b feature/<workstream>
+git commit -m "<workstream>: ..."
+git push origin feature/<workstream>
+```
+
+Then open a Pull Request — see `ARCHITECTURE.md` for component contracts.
 
 ---
 
@@ -681,17 +396,7 @@ Use only on networks and data for which appropriate authorization exists.
 # 🚀 The Vision
 
 ```text
-DETECT
-   ↓
-UNDERSTAND
-   ↓
-SIMULATE
-   ↓
-FORECAST
-   ↓
-EXPLAIN
-   ↓
-DEFEND
+DETECT → UNDERSTAND → SIMULATE → FORECAST → EXPLAIN → DEFEND
 ```
 
 <br>

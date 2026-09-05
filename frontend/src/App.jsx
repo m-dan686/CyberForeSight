@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { io } from "socket.io-client";
+import ForecastDashboard from "./ForecastDashboard.jsx";
 import "./App.css";
 
 const socket = io("http://localhost:5000");
@@ -10,6 +11,7 @@ export default function App() {
   const [jarvis, setJarvis] = useState("Systems online. How can I help?");
   const [message, setMessage] = useState("");
   const [listening, setListening] = useState(false);
+  const [forecastView, setForecastView] = useState(false);
 
   const recognitionRef = useRef(null);
 
@@ -172,23 +174,48 @@ export default function App() {
       <header className="header">
         <div className="logo-area">
           <div className="logo-orb">
-            <span>J</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M12 2.5 4 5.5v6c0 4.6 3.4 8.4 8 10 4.6-1.6 8-5.4 8-10v-6l-8-3Z" />
+              <path d="M8.4 12.1 11 14.7l4.7-5.2" />
+              <circle cx="12" cy="21" r="0.5" fill="currentColor" />
+            </svg>
           </div>
 
           <div>
-            <h1>JARVIS</h1>
-            <p>ADAPTIVE CYBER INTELLIGENCE</p>
+            <h1>CYBERFORESIGHT</h1>
+            <p className="brand-sub">AI infiltration forecasting · <b>JARVIS</b> core</p>
           </div>
         </div>
 
-        <div className="online">
-          <i></i>
-          SYSTEM ONLINE
+        <div className="header-right">
+          <div className="online" role="status">
+            <i aria-hidden="true"></i>
+            System online
+          </div>
+
+          <div className="view-toggle" data-v={forecastView ? "forecast" : "live"} role="group" aria-label="View">
+            <button
+              className={!forecastView ? "active" : ""}
+              onClick={() => setForecastView(false)}
+              aria-pressed={!forecastView}
+            >
+              Live
+            </button>
+            <button
+              className={forecastView ? "active" : ""}
+              onClick={() => setForecastView(true)}
+              aria-pressed={forecastView}
+            >
+              Forecast
+            </button>
+          </div>
         </div>
       </header>
 
 
-      {/* MAIN */}
+      {forecastView ? (
+        <ForecastDashboard />
+      ) : (
 
       <main className="main-grid">
 
@@ -213,7 +240,7 @@ export default function App() {
               const threat = getThreat(device);
 
               return (
-                <div className="device" key={device.hostname}>
+                <div className="device" key={device.hostname} data-level={threat}>
 
                   <div className="device-circle">
                     ●
@@ -393,6 +420,8 @@ export default function App() {
         </section>
 
       </main>
+      )}
+
     </div>
   );
 }

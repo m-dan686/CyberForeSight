@@ -16,22 +16,33 @@ data:
   # primary: CIC-IDS-2017 flow CSV
 
 features:
-  # Flow + packet features selected (mapped to the CIC-IDS schema)
-  # Placeholder - final list derived by the feature-selection pipeline.
+  # Flow + packet features selected (canonical names produced by features/window.py)
+  # 24 numeric aggregates -> state vector S_t (robust-scaled on benign windows).
   selected:
-    - "Destination Port"
-    - "Total Length of Fwd Packets"
-    - "Fwd IAT Std"
-    - "Fwd IAT Mean"
-    - "Fwd IAT Max"
-    - "Fwd IAT Total"
-    - "Total Fwd Packets"
-    - "Total Backward Packets"
-    - "Fwd Packet Length Mean"
-    - "Bwd Packet Length Mean"
-    - "Packet Length Mean"
-    - "Init_Win_bytes_forward"
-    - "Init_Win_bytes_backward"
+    - "flow_iat_mean"
+    - "flow_iat_std"
+    - "flow_iat_max"
+    - "fwd_iat_mean"
+    - "fwd_iat_std"
+    - "fwd_iat_max"
+    - "bwd_iat_mean"
+    - "bwd_iat_std"
+    - "bwd_iat_max"
+    - "pkt_len_mean"
+    - "pkt_len_std"
+    - "syn_cnt"
+    - "ack_cnt"
+    - "fin_cnt"
+    - "rst_cnt"
+    - "psh_cnt"
+    - "urg_cnt"
+    - "down_up_ratio"
+    - "init_fwd_win"
+    - "init_bwd_win"
+    - "fwd_act_data_pkts"
+    - "fwd_seg_size_min"
+    - "subflow_fwd_pkts"
+    - "subflow_bwd_pkts"
 
 windowing:
   window_seconds: 60     # aggregate flows into 60s network-state windows S_t
@@ -50,7 +61,7 @@ training:
   epochs: 25
   batch_size: 32         # kept low for 4GB GTX 1650
   learning_rate: 0.001
-  weight_decay: 1e-5
+  weight_decay: 0.00001
   optimizer: "adam"
   loss: "mse"
   val_split: 0.15

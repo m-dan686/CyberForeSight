@@ -442,3 +442,44 @@
   flex-direction: column;
   gap: 2px;
 }
+/* =========================================================
+   STAGE (MITRE ATT&CK forecast)
+   ========================================================= */
+
+.f-stage-track {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 14px 0;
+}
+
+.f-stage-step {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--line, #1d3f52);
+  border-radius: 8px;
+  background: rgba(55, 190, 230, 0.05);
+  min-width: 140px;
+}
+
+.f-stage-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ff4d6d;
+  box-shadow: 0 0 8px rgba(255, 77, 109, 0.7);
+}
+
+.f-stage-label {
+  color: var(--text-hi);
+  font-weight: 600;
+  font-size: 12px;
+}
+
+.f-stage-val {
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: 10px;
+}

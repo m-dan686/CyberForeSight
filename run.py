@@ -90,15 +90,15 @@ def run_features(args: argparse.Namespace) -> int:
 
 
 def run_train(args: argparse.Namespace) -> int:
-    """Workstream 3a: train the LSTM world model on windowed states."""
+    """Workstream 3a: train the sequence world model on windowed states."""
     from training.train import train_world_model
 
     cfg = _load_config(args.config)
-    m, t = cfg["model"], cfg["training"]
+    m, t, w = cfg["model"], cfg["training"], cfg["windowing"]
     train_world_model(
         windows_path=f"{cfg['data']['processed_dir']}/window_state.csv",
         out_dir=t["save_dir"],
-        seq_len=cfg["windowing"]["seq_len"],
+        seq_len=w["seq_len"],
         hidden_size=m["hidden_size"],
         num_layers=m["num_layers"],
         dropout=m["dropout"],
@@ -108,6 +108,13 @@ def run_train(args: argparse.Namespace) -> int:
         weight_decay=t["weight_decay"],
         val_split=t["val_split"],
         test_split=t["test_split"],
+        model_type=m.get("type", "lstm"),
+        attack_loss_weight=t.get("attack_loss_weight", 5.0),
+        pos_weight=t.get("pos_weight"),
+        grad_clip=t.get("grad_clip", 1.0),
+        lr_patience=t.get("lr_patience", 8),
+        lr_factor=t.get("lr_factor", 0.5),
+        early_stop_patience=t.get("early_stop_patience", 15),
     )
     return 0
 

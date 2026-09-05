@@ -18,18 +18,32 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import torch
+import torch.nn as nn
 
+from detection.stage_mapping import predict_timeline, score_stages
 from models.lstm_world import WorldModelLSTM
+from models.transformer_world import WorldModelTransformer
 
 
-def load_model(checkpoint: str | Path, device: torch.device) -> WorldModelLSTM:
+def load_model(checkpoint: str | Path, device: torch.device) -> "nn.Module":
+    import torch.nn as nn
+
+    from models.lstm_world import WorldModelLSTM
+    from models.transformer_world import WorldModelTransformer
+
     ckpt = torch.load(checkpoint, map_location=device, weights_only=False)
     cfg = ckpt["config"]
-    model = WorldModelLSTM(
+    model_type = cfg.get("model_type", "lstm")
+    kwargs = dict(
         input_dim=cfg["input_dim"],
         hidden_dim=cfg["hidden_size"],
         num_layers=cfg["num_layers"],
         dropout=cfg["dropout"],
+    )
+    model = (
+        WorldModelTransformer(**kwargs)
+        if model_type == "transformer"
+        else WorldModelLSTM(**kwargs)
     )
     model.load_state_dict(ckpt["state_dict"])
     model.to(device).eval()
@@ -47,38 +61,61 @@ def build_state_matrix(windows: pd.DataFrame) -> tuple[np.ndarray, np.ndarray, n
 
 
 def one_step_timeline(
-    model: WorldModelLSTM,
+    model: nn.Module,
     states: np.ndarray,
     seq_len: int,
+    feature_names: list[str],
     device: torch.device,
     threshold: float = 0.6,
 ) -> pd.DataFrame:
-    """Teacher-forced next-window attack probability for every window."""
+    """Teacher-forced next-window attack probability for every window.
+
+    Also records the predicted next-window state vector so a MITRE ATT&CK
+    stage can be scored for the horizon being forecast.
+    """
     model.eval()
     probs = []
+    pred_states = []
+    cur_states = []
     with torch.no_grad():
         for i in range(seq_len - 1, states.shape[0] - 1):
             x = torch.from_numpy(states[i - seq_len + 1 : i + 1][None]).to(device)
-            prob = model.attack_probability(x).item()
-            probs.append(prob)
+            next_state, _, _ = model(x)
+            probs.append(model.attack_probability(x).item())
+            pred_states.append(next_state[0].cpu().numpy().astype(np.float32))
+            cur_states.append(states[i].astype(np.float32))
     prob = np.asarray(probs, dtype=np.float64)
+    pred = np.asarray(pred_states, dtype=np.float32)
+    cur = np.asarray(cur_states, dtype=np.float32)
+
+    stages_next = predict_timeline(pred, feature_names, prob)
+    stages_now = predict_timeline(cur, feature_names, prob)
     return pd.DataFrame(
         {
             "prob_next": prob,
             "flagged": (prob >= threshold).astype(int),
+            "stage_next": [s["stage"] for s in stages_next],
+            "stage_next_confidence": [s["confidence"] for s in stages_next],
+            "stage_next_technique": [s["technique"] for s in stages_next],
+            "stage_now": [s["stage"] for s in stages_now],
         }
     )
 
 
 def rollout_k(
-    model: WorldModelLSTM,
+    model: nn.Module,
     states: np.ndarray,
     start_idx: int,
     k: int,
     seq_len: int,
+    feature_names: list[str],
     device: torch.device,
-) -> tuple[np.ndarray, np.ndarray]:
-    """Autoregressive rollout: predicted states and attack probs for K steps."""
+) -> tuple[np.ndarray, np.ndarray, list[dict[str, object]]]:
+    """Autoregressive rollout: predicted states and attack probs for K steps.
+
+    Each predicted state is scored against the ATT&CK stages, so the defender
+    sees the *stage path* the model expects the intrusion to follow.
+    """
     model.eval()
     window = torch.from_numpy(states[start_idx - seq_len + 1 : start_idx + 1][None]).float().to(device)
     pred_states = []
@@ -86,10 +123,13 @@ def rollout_k(
     with torch.no_grad():
         for _ in range(k):
             next_state, _, _ = model(window)
-            pred_states.append(next_state[0].cpu().numpy())
+            pred_states.append(next_state[0].cpu().numpy().astype(np.float32))
             probs.append(model.attack_probability(window).item())
             window = torch.cat([window[:, 1:, :], next_state.unsqueeze(1)], dim=1)
-    return np.asarray(pred_states), np.asarray(probs)
+    pred = np.asarray(pred_states, dtype=np.float32)
+    prob = np.asarray(probs, dtype=np.float64)
+    stages = predict_timeline(pred, feature_names, prob)
+    return pred, prob, stages
 
 
 def infiltration_lead_time(
@@ -172,15 +212,18 @@ def run_forecast(
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = load_model(checkpoint, device)
     states, attack, frac = build_state_matrix(windows)
+    feature_names = [c.replace("state_", "") for c in windows.columns if c.startswith("state_")]
 
-    timeline = one_step_timeline(model, states, seq_len, device, threshold)
+    timeline = one_step_timeline(model, states, seq_len, feature_names, device, threshold)
     timeline = timeline.iloc[: attack.size - seq_len]  # drop trailing
     timeline["window_start"] = windows["window_start"].to_numpy()[seq_len - 1 : -1].copy()
     timeline["attack_frac"] = frac[seq_len - 1 : -1]
     timeline["attack"] = attack[seq_len - 1 : -1]
 
     start_idx = start_idx if start_idx is not None else max(0, int(np.argmax(frac > 0)) - 1)
-    pred_states, probs = rollout_k(model, states, start_idx, k_steps, seq_len, device)
+    pred_states, probs, stage_steps = rollout_k(
+        model, states, start_idx, k_steps, seq_len, feature_names, device
+    )
 
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
@@ -193,6 +236,9 @@ def run_forecast(
             "step": np.arange(1, k_steps + 1),
             "minutes_ahead": np.arange(k_steps),
             "attack_probability": probs,
+            "stage_next": [s["stage"] for s in stage_steps],
+            "stage_confidence": [s["confidence"] for s in stage_steps],
+            "stage_technique": [s["technique"] for s in stage_steps],
         }
     ).to_csv(rollout_path, index=False)
 
@@ -202,6 +248,27 @@ def run_forecast(
     info["start_window"] = str(windows["window_start"].to_numpy()[start_idx])
     info["k_steps"] = k_steps
     info["seq_len"] = seq_len
+    info["stage_plan"] = {
+        "mapper": "rule-level ATT&CK stage scoring over predicted future-state "
+                  "fingerprints (see detection/stage_mapping.py)",
+        "steps": [
+            {
+                "minutes_ahead": int(m),
+                "stage": s["stage"],
+                "stage_id": s["stage_id"],
+                "technique": s["technique"],
+                "tactic": s["tactic"],
+                "confidence": s["confidence"],
+                "attack_probability": s["attack_probability"],
+                "top_signals": s["top_signals"],
+            }
+            for s, m in zip(stage_steps, range(k_steps))
+        ],
+        "dominant_stage": max(
+            stage_steps, key=lambda s: s["confidence"] * s["attack_probability"]
+        )["stage"],
+    }
+    info["stage_plan"]["stage_sequence"] = [s["stage"] for s in stage_steps]
     (out / "forecast_info.json").write_text(json.dumps(info, indent=2, default=str))
 
     rollout_df = pd.read_csv(rollout_path)

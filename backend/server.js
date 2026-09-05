@@ -132,11 +132,12 @@ function readJsonIfExists(name) {
 function csvToRows(name) {
     const file = path.join(MODELS_DIR, name);
     if (!fs.existsSync(file)) return null;
+    const clean = (s) => (s === undefined ? "" : String(s).replace(/\r$/, ""));
     const lines = fs.readFileSync(file, "utf8").trim().split("\n");
     if (lines.length < 2) return null;
-    const headers = lines[0].split(",");
+    const headers = lines[0].split(",").map(clean);
     return lines.slice(1).map((line) => {
-        const values = line.split(",");
+        const values = line.split(",").map(clean);
         const row = {};
         headers.forEach((h, i) => { row[h] = values[i]; });
         return row;

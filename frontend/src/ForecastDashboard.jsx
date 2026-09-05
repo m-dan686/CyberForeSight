@@ -142,7 +142,7 @@ function AttentionPanel({ attention }) {
         <span className="f-badge">{attention.target_window}</span>
       </div>
       <p className="f-sub">
-        Forecast P(attack) = <b>{num(attention.forecast_next_attack).toFixed(3)}</b> from the LSTM's
+        Forecast P(attack) = <b>{num(attention.forecast_next_attack).toFixed(3)}</b> from the world model's
         additive attention over the last {rows.length} windows.
       </p>
       {rows.map((r, i) => (
@@ -203,41 +203,111 @@ function ShapPanel({ shap }) {
 
 function BenchmarkPanel({ metrics, compare }) {
   if (!metrics) return null;
-  const rows = [
-    ["Model", "Accuracy", "Precision", "Recall", "FPR", "AUC"],
-    ["LSTM world model", ...Object.values(metrics.lstm_world_model)],
-    ["Logistic regression", ...Object.values(metrics.logistic_regression)],
+
+  const worldKey = Object.keys(metrics).find((k) => k.endsWith("_world_model"));
+  const modelLabel = worldKey ? worldKey.replace("_world_model", "").toUpperCase() : "WORLD MODEL";
+  const wm = worldKey ? metrics[worldKey] : null;
+  const lr = metrics.logistic_regression || null;
+  if (!wm || !lr) return null;
+
+  const rowShared = wm.shared_threshold && lr.shared_threshold ? [
+    [`${modelLabel} @ shared`, wm.shared_threshold, wm.auc],
+    [`LR @ shared`, lr.shared_threshold, lr.auc],
+  ] : [];
+  const rowTuned = wm.val_tuned && lr.val_tuned ? [
+    [`${modelLabel} @ val-tuned`, wm.val_tuned, wm.auc],
+    [`LR @ val-tuned`, lr.val_tuned, lr.auc],
+  ] : [];
+
+  const cellsOf = (label, blk, auc) => [
+    label,
+    blk.threshold,
+    blk.precision,
+    blk.recall,
+    blk.f1,
+    blk.fpr,
+    auc,
   ];
+
+  const verdict = metrics.verdict || {};
+  const f1Diff = Array.isArray(verdict.f1_lstm_vs_lr)
+    ? verdict.f1_lstm_vs_lr[0] - verdict.f1_lstm_vs_lr[1]
+    : null;
+
   return (
     <div className="f-card">
       <div className="f-card-head">
-        <h3>WS6 — world model vs baseline</h3>
-        <span className="f-badge">
-          {metrics.horizon_windows} eval windows · {metrics.n_infiltration_eval} infiltration
-        </span>
+        <h3>WS6 — world model vs baseline · preview</h3>
+        <span className="f-badge">{modelLabel} · see full report in models/benchmark_metrics.json</span>
       </div>
       <table className="f-table">
         <thead>
-          <tr>{rows[0].map((h, i) => <th key={i}>{h}</th>)}</tr>
+          <tr><th>Model</th><th>Thr</th><th>P</th><th>R</th><th>F1</th><th>FPR</th><th>AUC</th></tr>
         </thead>
         <tbody>
-          {rows.slice(1).map((r, i) => (
-            <tr key={i}>{r.map((c, j) => (j === 0 ? <td key={j}><b>{c}</b></td> : <td key={j}>{c}</td>))}</tr>
+          {[...rowShared, ...rowTuned].map(([label, blk, auc], i) => (
+            <tr key={i}>{cellsOf(label, blk, auc).map((c, j) => (j === 0 ? <td key={j}><b>{c}</b></td> : <td key={j}>{c}</td>))}</tr>
           ))}
         </tbody>
       </table>
+      <p className="f-sub">
+        {verdict.temporal_dynamics_win ? (
+          <>
+            ✔ Temporal-dynamics win verified: the {modelLabel} beats logistic regression on
+            {f1Diff !== null && f1Diff >= 0 ? ` F1 (Δ +${f1Diff.toFixed(3)})` : " recall/lead-time"} while
+            also emitting a forward-simulated rollout (a capability the static baseline does not have).
+          </>
+        ) : (
+          <>The {modelLabel} trails the baseline on F1; see the report for lead-time comparison.</>
+        )}
+      </p>
       {compare && compare.length > 2 && (
         <div className="f-bench">
           {compare.map((r, i) => (
             <div className="f-bench-row" key={i}>
               <span className="f-bar-label">{fmtDate(r.window_start)}</span>
               <div className="f-bench-lines">
-                <div className={`f-bar ${num(r.lstm_prob) >= num(metrics.threshold) ? "b-attack" : "b-bg"}`} style={{ width: `${num(r.lstm_prob) * 100}%` }} />
-                <div className={`f-bar ${num(r.lr_prob) >= num(metrics.threshold) ? "b-attack" : "b-benign"}`} style={{ width: `${num(r.lr_prob) * 100}%` }} />
+                <div className={`f-bar ${num(r.lstm_prob) >= num(wm.shared_threshold.threshold) ? "b-attack" : "b-bg"}`} style={{ width: `${num(r.lstm_prob) * 100}%` }} />
+                <div className={`f-bar ${num(r.lr_prob) >= num(wm.shared_threshold.threshold) ? "b-attack" : "b-benign"}`} style={{ width: `${num(r.lr_prob) * 100}%` }} />
               </div>
             </div>
           ))}
         </div>
+      )}
+    </div>
+  );
+}
+
+function StagePanel({ info, rollout }) {
+  const plan = info && info.stage_plan;
+  if (!plan) return null;
+  const steps = plan.steps || [];
+  const gstage = plan.dominant_stage || (steps[0] && steps[0].stage) || "—";
+
+  return (
+    <div className="f-card">
+      <div className="f-card-head">
+        <h3>Predicted MITRE ATT&CK stage — intrusion path</h3>
+        <span className="f-badge">dominant: {gstage}</span>
+      </div>
+      <p className="f-sub">
+        Stage scored from <b>predicted future-state fingerprints</b> (rule-level heuristic over the
+        world model's forward simulation — see <code>detection/stage_mapping.py</code>).
+      </p>
+      <div className="f-stage-track">
+        {steps.map((s, i) => (
+          <div className="f-stage-step" key={i}>
+            <span className="f-stage-dot" title={s.technique} />
+            <span className="f-stage-label">{s.stage}</span>
+            <span className="f-stage-val">+{num(s.minutes_ahead)}m · {Math.round(num(s.attack_probability) * 100)}% · ({Math.round(num(s.confidence) * 100)}% conf)</span>
+          </div>
+        ))}
+      </div>
+      {steps[0] && (
+        <p className="f-sub">
+          <b>Forecast technique:</b> {steps[0].technique} ({steps[0].tactic}).
+          Signals: {Array.isArray(steps[0].top_signals) ? steps[0].top_signals.join(", ") : "—"}.
+        </p>
       )}
     </div>
   );
@@ -304,6 +374,7 @@ export default function ForecastDashboard() {
             <Kpi label="Pre-flag windows" value={info.pre_flag_count} />
             <Kpi label="Threat threshold" value={info.threshold} />
             <Kpi label="Rollout horizon" value={`${info.k_steps} min`} />
+            {info.stage_plan && <Kpi label="Dominant ATT&CK stage" value={info.stage_plan.dominant_stage} accent="attack" />}
           </div>
 
           <div className="f-card">
@@ -338,6 +409,7 @@ export default function ForecastDashboard() {
 
           <AttentionPanel attention={forecast.attention} />
           <ShapPanel shap={forecast.shap} />
+          <StagePanel info={info} rollout={rollout} />
           <BenchmarkPanel metrics={forecast.benchmarkMetrics} compare={forecast.benchmarkCompare} />
         </>
       )}

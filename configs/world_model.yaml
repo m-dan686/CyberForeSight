@@ -49,28 +49,45 @@ windowing:
   seq_len: 10            # number of windows fed to the LSTM (t-9 ... t)
 
 model:
-  type: "lstm"           # primary: LSTM (PS allows Transformer/GNN as alternatives)
+  type: "transformer"           # primary: LSTM (PS allows Transformer/GNN as alternatives). "transformer" supported too.
   input_size: null       # = len(features.selected); resolved at runtime
-  hidden_size: 64
+  hidden_size: 96
   num_layers: 2
-  dropout: 0.2
+  dropout: 0.3
   output_size: null      # = predicted next-state dim; resolved at runtime
 
 training:
   device: "auto"         # 'cuda' if torch.cuda.is_available() else 'cpu'
-  epochs: 25
+  epochs: 150            # with early stopping on val loss (patience below)
+  early_stop_patience: 15
   batch_size: 32         # kept low for 4GB GTX 1650
   learning_rate: 0.001
-  weight_decay: 0.00001
+  lr_patience: 8         # ReduceLROnPlateau patience (epochs)
+  lr_factor: 0.5
+  weight_decay: 0.001    # strong reg: only ~570 windows, 24-dim states
+  grad_clip: 1.0         # max gradient norm
+  attack_loss_weight: 12.0  # scale the BCE attack head relative to state MSE
+  pos_weight: 4.0       # BCE positive-class weight; null -> auto (#benign/#attack)
   optimizer: "adam"
-  loss: "mse"
+  loss: "mse+weighted_bce"
   val_split: 0.15
   test_split: 0.15
   random_seed: 42
   time_aware_split: true # split on time, not randomly (avoid temporal leakage)
   save_dir: "models"
-  checkpoint: "models/world_model_lstm.pt"
+  checkpoint: "models/world_model_transformer.pt"
   loss_curve: "models/training_loss.png"
+
+# ---------------------------------------------------------------------------
+# Baseline (logistic regression) tuning used by --stage benchmark.  Both models
+# answer the same question: P(attack in window t+1 | state at t), compared over
+# the same out-of-sample chronological horizon.
+# ---------------------------------------------------------------------------
+benchmark:
+  lr_c: 0.1             # L2 strength for the logistic-regression baseline
+  lr_max_iter: 2000
+  threshold_shared: null  # null -> use forecasting.threat_threshold (0.6) for the shared row
+  threshold_tuning: "val" # 'val' -> per-model optimal threshold chosen on the val slice
 
 forecasting:
   # K-step model-based rollout

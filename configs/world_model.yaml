@@ -1,0 +1,76 @@
+# ============================================================
+# CyberForeSight - World Model configuration
+# Reproducible training configuration (SIH-26153 requirement)
+# All paths are relative to the project root.
+# ============================================================
+
+data:
+  # Primary dataset (CIC-IDS-2017/2018 style flow CSV)
+  raw_dir: "data/raw"
+  processed_dir: "data/processed"
+  ml_dir: "data/ml"
+  dataset_csv: "data/ml/cic_ml_dataset.csv"      # name-labelled flow rows
+  binary_csv: "data/ml/cic_binary_dataset.csv"   # 0/1 benign/attack rows (for SHAP)
+
+  # Source datasets (from PS): CIC-IDS2017/2018, UNSW-NB15, CTU-13, CICIoT2023, LANL, DARPA
+  # primary: CIC-IDS-2017 flow CSV
+
+features:
+  # Flow + packet features selected (mapped to the CIC-IDS schema)
+  # Placeholder - final list derived by the feature-selection pipeline.
+  selected:
+    - "Destination Port"
+    - "Total Length of Fwd Packets"
+    - "Fwd IAT Std"
+    - "Fwd IAT Mean"
+    - "Fwd IAT Max"
+    - "Fwd IAT Total"
+    - "Total Fwd Packets"
+    - "Total Backward Packets"
+    - "Fwd Packet Length Mean"
+    - "Bwd Packet Length Mean"
+    - "Packet Length Mean"
+    - "Init_Win_bytes_forward"
+    - "Init_Win_bytes_backward"
+
+windowing:
+  window_seconds: 60     # aggregate flows into 60s network-state windows S_t
+  seq_len: 10            # number of windows fed to the LSTM (t-9 ... t)
+
+model:
+  type: "lstm"           # primary: LSTM (PS allows Transformer/GNN as alternatives)
+  input_size: null       # = len(features.selected); resolved at runtime
+  hidden_size: 64
+  num_layers: 2
+  dropout: 0.2
+  output_size: null      # = predicted next-state dim; resolved at runtime
+
+training:
+  device: "auto"         # 'cuda' if torch.cuda.is_available() else 'cpu'
+  epochs: 25
+  batch_size: 32         # kept low for 4GB GTX 1650
+  learning_rate: 0.001
+  weight_decay: 1e-5
+  optimizer: "adam"
+  loss: "mse"
+  val_split: 0.15
+  test_split: 0.15
+  random_seed: 42
+  time_aware_split: true # split on time, not randomly (avoid temporal leakage)
+  save_dir: "models"
+  checkpoint: "models/world_model_lstm.pt"
+  loss_curve: "models/training_loss.png"
+
+forecasting:
+  # K-step model-based rollout
+  k_steps: 8
+  threat_threshold: 0.6  # probability above this -> treat as infiltration
+
+# MITRE ATT&CK stage mapping thresholds (predicted-state -> stage)
+mitre:
+  stages:
+    - "RECONNAISSANCE"
+    - "INITIAL_ACCESS"
+    - "LATERAL_MOVEMENT"
+    - "COMMAND_AND_CONTROL"
+    - "EXFILTRATION"

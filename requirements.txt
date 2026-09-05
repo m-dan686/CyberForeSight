@@ -1,0 +1,27 @@
+# CyberForeSight - Core Python dependencies (installed into .venv)
+# See requirements-cuda.txt for the CUDA-enabled PyTorch install.
+
+# --- ML / World Model ---
+torch
+scikit-learn
+pandas
+numpy
+
+# --- Model persistence ---
+joblib
+
+# --- Explainability ---
+shap
+
+# --- Packet / flow parsing ---
+scapy
+
+# --- Time-series baseline ---
+statsmodels
+
+# --- Demo UI / plotting ---
+streamlit
+matplotlib
+
+# --- YAML config ---
+pyyaml

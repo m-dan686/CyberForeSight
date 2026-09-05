@@ -1,0 +1,17 @@
+# CyberForeSight - CUDA-enabled PyTorch install (reproducible)
+#
+# Install order:
+#   1) .venv\Scripts\python -m venv .venv
+#   2) .venv\Scripts\python -m pip install torch --index-url https://download.pytorch.org/whl/cu130
+#   3) .venv\Scripts\python -m pip install -r requirements.txt
+#
+# Verified target:
+#   torch 2.14.0+cu130  (CUDA 13.0 build)
+#   GPU: NVIDIA GeForce GTX 1650 (compute capability 7.5 / Turing)
+#   Python: 3.14
+#
+# No nvcc / CUDA toolkit needed - the wheel bundles the CUDA runtime.
+# Only a compatible NVIDIA driver is required (>= CUDA 13.x driver).
+#
+# Verify:
+#   .venv\Scripts\python -c "import torch; print(torch.__version__, torch.cuda.is_available(), torch.cuda.get_device_name(0))"

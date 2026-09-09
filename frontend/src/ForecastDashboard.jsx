@@ -218,10 +218,19 @@ function BenchmarkPanel({ metrics, compare }) {
     [`${modelLabel} @ val-tuned`, wm.val_tuned, wm.auc],
     [`LR @ val-tuned`, lr.val_tuned, lr.auc],
   ] : [];
+  const rowPersistShared = wm.persistence_shared && lr.persistence_shared ? [
+    [`${modelLabel} · 2-of-3 persist @ shared`, wm.persistence_shared, wm.auc],
+    [`LR · 2-of-3 persist @ shared`, lr.persistence_shared, lr.auc],
+  ] : [];
+  const rowPersistAcc = wm.persistence_accuracy_tuned && lr.persistence_accuracy_tuned ? [
+    [`${modelLabel} · 2-of-3 persist @ acc-tuned`, wm.persistence_accuracy_tuned, wm.auc],
+    [`LR · 2-of-3 persist @ acc-tuned`, lr.persistence_accuracy_tuned, lr.auc],
+  ] : [];
 
   const cellsOf = (label, blk, auc) => [
     label,
     blk.threshold,
+    blk.accuracy,
     blk.precision,
     blk.recall,
     blk.f1,
@@ -242,10 +251,10 @@ function BenchmarkPanel({ metrics, compare }) {
       </div>
       <table className="f-table">
         <thead>
-          <tr><th>Model</th><th>Thr</th><th>P</th><th>R</th><th>F1</th><th>FPR</th><th>AUC</th></tr>
+          <tr><th>Model</th><th>Thr</th><th>Acc</th><th>P</th><th>R</th><th>F1</th><th>FPR</th><th>AUC</th></tr>
         </thead>
         <tbody>
-          {[...rowShared, ...rowTuned].map(([label, blk, auc], i) => (
+          {[...rowShared, ...rowTuned, ...rowPersistShared, ...rowPersistAcc].map(([label, blk, auc], i) => (
             <tr key={i}>{cellsOf(label, blk, auc).map((c, j) => (j === 0 ? <td key={j}><b>{c}</b></td> : <td key={j}>{c}</td>))}</tr>
           ))}
         </tbody>
@@ -261,6 +270,18 @@ function BenchmarkPanel({ metrics, compare }) {
           <>The {modelLabel} trails the baseline on F1; see the report for lead-time comparison.</>
         )}
       </p>
+      {wm.persistence_accuracy_tuned && (
+        <p className="f-sub f-persist-note">
+          <b>Persistence rule:</b> flag a window only if its attack probability stays at/above the
+          threshold for 2 of 3 consecutive windows (threshold tuned on the <b>val slice only</b> —
+          max accuracy, recall ≥ 0.98 — then applied over the full timeline and scored on the same
+          OOS horizon). OOS accuracy: <b>{num(wm.persistence_accuracy_tuned.accuracy).toFixed(4)}</b>{" "}
+          (@ thr {num(wm.persistence_accuracy_tuned.threshold).toFixed(2)}), equal to raw val-tuned:{" "}
+          {num(wm.val_tuned.accuracy).toFixed(4)}. The 10 OOS false positives are one contiguous{" "}
+          <b>post-attack decay tail</b> (10:55–11:04, P≥0.85 on verified-benign traffic), not isolated
+          spikes, so 2-of-3 persistence changes nothing — a documented limit of the pure forecaster.
+        </p>
+      )}
       {compare && compare.length > 2 && (
         <div className="f-bench">
           {compare.map((r, i) => (

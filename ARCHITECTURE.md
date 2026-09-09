@@ -82,10 +82,14 @@ Build a prototype that learns how network behaviour evolves over time, predicts 
 │  │              BENCHMARK                                           │   │
 │  │                                                                    │   │
 │  │  Logistic Regression baseline trained on the SAME features and   │   │
-│  │  time-aware split. Compared on F1, precision, recall, FPR, AUC   │   │
-│  │  over the held-out val+test region (170 windows, 46 positives).  │   │
+│  │  time-aware split. Compared on F1, precision, recall, FPR, AUC,  │   │
+│  │  accuracy over the held-out val+test region (170 windows, 46     │   │
+│  │  positives; 2-of-3 persistence rows included).                   │   │
 │  │  Result: world model wins (F1 0.891@0.6 / 0.902 val-tuned, AUC   │   │
-│  │  0.9635) → temporal-dynamics advantage proven.                   │   │
+│  │  0.9635, OOS accuracy 0.9412) → temporal-dynamics advantage      │   │
+│  │  proven. Documented limit: 100% recall but a 10-window post-     │   │
+│  │  attack decay tail caps per-window accuracy at 0.9412 (attack/   │   │
+│  │  tail probs interleave → threshold-irreducible, verified benign).│   │
 │  └──────────────────────────────────────────────────────────────────┘   │
 │                                                                         │
 │  ┌──────────────────────────────────────────────────────────────────┐   │

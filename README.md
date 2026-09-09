@@ -185,18 +185,22 @@ Predicted next-state fingerprints from the world model's forward simulation are 
 
 # 📊 Benchmark — World Model vs Logistic Regression
 
-An **honest A/B** on the identical next-window task: same features, same out-of-sample windows, chronological time-aware split, no temporal leakage. Evaluation region = **val + test** (window index ≥ 399): 170 windows, **46 infiltration positives**; LR is fit on the train region (index < 399) only, never on the eval region. Shared row uses the production threshold (0.6); val-tuned row uses the max-F1 threshold chosen per model on the val slice only.
+An **honest A/B** on the identical next-window task: same features, same out-of-sample windows, chronological time-aware split, no temporal leakage. Evaluation region = **val + test** (window index ≥ 399): 170 windows, **46 infiltration positives**; LR is fit on the train region (index < 399) only, never on the eval region. Shared row uses the production threshold (0.6); val-tuned row uses the max-F1 threshold chosen per model on the val slice only. Persistence rows apply a **2-of-3-window rule** (flag `w` only if `prob[w] ≥ thr` and `prob[w-1]` or `prob[w-2]` also `≥ thr`) over the full timeline, then slice to the same OOS horizon — the acc-tuned threshold maximizes OOS-region-masked accuracy on the **val slice only** with a recall floor ≥ 0.98.
 
-| Model | Thr | P | R (Recall) | F1 | FPR | AUC |
-| :-- | --: | --: | --: | --: | --: | --: |
-| **Temporal Transformer (world model)** | 0.6 | 0.8182 | **0.9783** | **0.8911** | 0.0806 | **0.9635** |
-| Logistic Regression (baseline) | 0.6 | 0.9 | 0.587 | 0.7105 | 0.0242 | 0.9469 |
-| Transformer @ val-tuned (0.4) | — | 0.8214 | **1.0** | **0.902** | 0.0806 | 0.9635 |
-| LR @ val-tuned (0.3) | — | 0.7925 | 0.913 | 0.8485 | 0.0887 | 0.9469 |
+| Model | Thr | Acc | P | R (Recall) | F1 | FPR | AUC |
+| :-- | --: | --: | --: | --: | --: | --: | --: |
+| **Temporal Transformer (world model)** | 0.6 | 0.9353 | 0.8182 | **0.9783** | **0.8911** | 0.0806 | **0.9635** |
+| Logistic Regression (baseline) | 0.6 | 0.8706 | 0.9 | 0.587 | 0.7105 | 0.0242 | 0.9469 |
+| Transformer @ val-tuned (0.4) | — | 0.9412 | 0.8214 | **1.0** | **0.902** | 0.0806 | 0.9635 |
+| LR @ val-tuned (0.3) | — | 0.9118 | 0.7925 | 0.913 | 0.8485 | 0.0887 | 0.9469 |
+| Transformer · 2-of-3 persist @0.6 | 0.6 | 0.9353 | 0.8182 | 0.9783 | 0.8911 | 0.0806 | 0.9635 |
+| Transformer · 2-of-3 persist @ acc-tuned (0.4) | 0.4 | **0.9412** | 0.8214 | **1.0** | **0.902** | 0.0806 | 0.9635 |
 
 **Temporal-dynamics win verified:** the Transformer beats LR on F1 (Δ +0.053 at the shared threshold, +0.053 val-tuned) and AUC (+0.017), recalls 100% of infiltrations at the val-tuned operating point — while emitting a forward-simulated K-step rollout and stage map, capabilities a static classifier does not have. Full record in `models/benchmark_metrics.json` (verdict `temporal_dynamics_win: true`).
 
-Artifacts: `models/benchmark_metrics.json`, `models/benchmark_compare.csv`, `models/benchmark_compare.png`.
+**Honest limit — post-attack decay tail.** Per-window accuracy is capped at **94.12%** on the OOS horizon, not because of isolated false positives (which 2-of-3 persistence would suppress) but because all 10 OOS false positives form a single *contiguous decay tail*: after the last labeled Infiltration window (10:54), the model keeps P(attack) ≥ 0.85 for 10 consecutive benign windows (10:55–11:04) — verified benign in `data/processed/flows_canonical.csv` (zero Infiltration flows, `attack_frac = 0`). Attack-window probabilities (0.44–0.87) and tail probabilities (0.85–0.97) interleave, so no threshold or persistence variant can separate them without dropping real attack windows; the model needs ~10 benign minutes to release its belief. This is a documented boundary of the pure forecaster — episode-level detection is perfect (single episode, 100% recall, ~10-window lead).
+
+Artifacts: `models/benchmark_metrics.json`, `models/benchmark_compare.csv` (includes `lstm_persist_*` flags), `models/benchmark_compare.png`.
 
 ---
 

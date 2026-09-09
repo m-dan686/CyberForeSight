@@ -214,6 +214,13 @@
   font-family: var(--font-mono);
 }
 
+.f-persist-note {
+  color: var(--text-dim, #8aa2b5);
+  font-size: 12px;
+  border-top: 1px dashed var(--grid);
+  padding-top: 10px;
+}
+
 /* =========================================================
    CHARTS
    ========================================================= */

@@ -15,6 +15,14 @@ Evaluation protocol (fixed vs the original version):
     evaluated on the identical eval horizon - no in-sample contamination.
   * Threshold rows: (a) shared threshold from config (0.6), (b) per-model
     threshold chosen on the val slice (max F1) then applied to eval.
+  * Persistence decision rows (2-of-3): a window is alerted only if prob >= thr
+    AND a neighbouring window (w-1 or w-2) was also >= thr - this drops isolated
+    single-window false positives; the attack block is contiguous so recall is
+    preserved. Applied identically to both models over the FULL timeline, then
+    sliced to the same OOS region (fair treatment, reaches the pre-onset row).
+  * Accuracy-tuned persistence row: threshold chosen on the VAL slice only
+    (objective = max accuracy subject to a 0.98 recall floor on val), applied to
+    the OOS horizon. No metric is ever optimised on the eval region itself.
   * Early-detection metrics: pre-onset first flag / lead time / P at onset-{1..3}
     showing the world model's forward-simulation advantage over a static baseline.
 
@@ -37,8 +45,7 @@ from sklearn.metrics import roc_auc_score
 from sklearn.preprocessing import StandardScaler
 
 
-def _summary(y: np.ndarray, prob: np.ndarray, threshold: float) -> dict[str, float]:
-    pred = (prob >= threshold).astype(int)
+def _pred_metrics(y: np.ndarray, pred: np.ndarray) -> dict[str, float]:
     tp = int(((pred == 1) & (y == 1)).sum())
     fp = int(((pred == 1) & (y == 0)).sum())
     fn = int(((pred == 0) & (y == 1)).sum())
@@ -46,13 +53,43 @@ def _summary(y: np.ndarray, prob: np.ndarray, threshold: float) -> dict[str, flo
     r = tp / max(tp + fn, 1)
     f1 = 2 * p * r / max(p + r, 1e-9)
     return {
-        "threshold": round(float(threshold), 3),
         "accuracy": round(float((pred == y).mean()), 4),
         "precision": round(float(p), 4),
         "recall": round(float(r), 4),
         "f1": round(float(f1), 4),
         "fpr": round(float(fp / max((y == 0).sum(), 1)), 4),
     }
+
+
+def _summary(y: np.ndarray, prob: np.ndarray, threshold: float) -> dict[str, float]:
+    out = _pred_metrics(y, (prob >= threshold).astype(int))
+    out["threshold"] = round(float(threshold), 3)
+    return out
+
+
+def _persist_pred(prob: np.ndarray, threshold: float) -> np.ndarray:
+    """2-of-3 persistence: flag window w only if prob[w]>=thr and prob[w-1] or
+    prob[w-2] also >= thr. Isolated single-window false positives get suppressed;
+    the contiguous infiltration block (prob sustained high) is preserved."""
+    pred = (prob >= threshold).astype(int)
+    out = pred.copy()
+    for w in range(len(pred)):
+        if pred[w] == 1 and not (w >= 1 and pred[w - 1] == 1) and not (w >= 2 and pred[w - 2] == 1):
+            out[w] = 0
+    return out
+
+
+def _persisted_summary(
+    y_eval: np.ndarray, prob_full: np.ndarray, threshold: float, mask: np.ndarray | None = None,
+) -> dict[str, object]:
+    pred = _persist_pred(prob_full, threshold)
+    if mask is not None:
+        pred = pred[mask]
+    out: dict[str, object] = {}
+    out.update(_pred_metrics(y_eval, pred))
+    out["threshold"] = round(float(threshold), 3)
+    out["decision"] = "2-of-3-window persistence"
+    return out
 
 
 def _tune_threshold(y: np.ndarray, prob: np.ndarray) -> float:
@@ -68,6 +105,26 @@ def _tune_threshold(y: np.ndarray, prob: np.ndarray) -> float:
         if f1 > best_f1 + 1e-9 or (abs(f1 - best_f1) <= 1e-9 and t > best_t):
             best_t, best_f1 = float(t), float(f1)
     return best_t
+
+
+def _tune_accuracy_persist(
+    y_val: np.ndarray, prob_full: np.ndarray, val_mask: np.ndarray, min_recall: float = 0.98,
+) -> tuple[float, float]:
+    """Threshold for the 2-of-3 persistence rule, chosen on the VAL slice only:
+    maximise accuracy on val subject to a recall floor (default 0.98 on val).
+    Returns (threshold, val_accuracy). Never evaluates on the held-out OOS rows."""
+    best_t, best_acc = 0.05, -1.0
+    for t in np.linspace(0.05, 0.95, 19):
+        pred = _persist_pred(prob_full, t)[val_mask]
+        tp = int(((pred == 1) & (y_val == 1)).sum())
+        fn = int(((pred == 0) & (y_val == 1)).sum())
+        r = tp / max(tp + fn, 1)
+        if r < min_recall:
+            continue
+        acc = float((pred == y_val).mean())
+        if acc > best_acc + 1e-9 or (abs(acc - best_acc) <= 1e-9 and t > best_t):
+            best_t, best_acc = float(t), float(acc)
+    return best_t, best_acc
 
 
 def _auc(y: np.ndarray, prob: np.ndarray) -> float | None:
@@ -172,8 +229,9 @@ def run_benchmark(
     lr = LogisticRegression(max_iter=cfg.get("benchmark", {}).get("lr_max_iter", 2000),
                             C=cfg.get("benchmark", {}).get("lr_c", 0.1))
     lr.fit(X_lr, y[lr_train_mask])
-    X_eval = scaler.transform(features[eval_mask])
-    prob_lr = lr.predict_proba(X_eval)[:, 1]
+    X_full = scaler.transform(features)
+    prob_lr_full = lr.predict_proba(X_full)[:, 1]
+    prob_lr = prob_lr_full[eval_mask]
 
     y_ev = y[eval_mask]
     lstm_oos = prob_lstm[eval_mask]
@@ -202,6 +260,25 @@ def run_benchmark(
             tuned = float(shared_threshold)
         block["val_tuned_threshold"] = tuned
         block["val_tuned"] = _summary(y_ev, prob, float(tuned))
+
+    # Persistence decision rows (2-of-3). Applied to the FULL timeline so the
+    # boundary window has context, then sliced to the same OOS horizon.
+    persist_tuned_thr: dict[str, float] = {}
+    for key, prob_full in ((model_key, prob_lstm), ("logistic_regression", prob_lr_full)):
+        block = results[key]
+        block["persistence_shared"] = _persisted_summary(
+            y_ev, prob_full, float(shared_threshold), mask=eval_mask)
+        acc_t, acc_t_val = _tune_accuracy_persist(
+            y[val_mask], prob_full, val_mask, min_recall=0.98)
+        persist_tuned_thr[key] = float(acc_t)
+        block["persistence_accuracy_tuned"] = _persisted_summary(
+            y_ev, prob_full, acc_t, mask=eval_mask)
+        block["persistence_accuracy_tuned"]["tuned_on"] = {
+            "slice": "val (index=%d..%d)" % (int(np.flatnonzero(val_mask)[0]),
+                                             int(np.flatnonzero(val_mask)[-1])),
+            "objective": "max accuracy | recall floor 0.98 on val",
+            "val_accuracy": round(float(acc_t_val), 4),
+        }
 
     first_attack_idx = int(np.flatnonzero(y == 1)[0]) if y.any() else -1
     for key, prob in ((model_key, prob_lstm), ("logistic_regression", prob_lr)):
@@ -239,6 +316,9 @@ def run_benchmark(
             "attack_next": y_ev,
             "lstm_prob": np.round(lstm_oos, 5),
             "lr_prob": np.round(prob_lr, 5),
+            "lstm_persist_shared": _persist_pred(prob_lstm, float(shared_threshold))[eval_mask],
+            "lstm_persist_acc_tuned": _persist_pred(
+                prob_lstm, persist_tuned_thr[model_key])[eval_mask],
             "region": df["region"].to_numpy()[eval_mask],
         }
     )
@@ -283,6 +363,18 @@ def run_benchmark(
     print(f"[benchmark] val-tuned:       "
           f"{model_label} f1={l1['val_tuned']['f1']} auc={l1['auc']} th={l1['val_tuned_threshold']}"
           f" | LR  f1={l2['val_tuned']['f1']} auc={l2['auc']} th={l2['val_tuned_threshold']}")
+    ps1 = l1["persistence_shared"]
+    ps2 = l2["persistence_shared"]
+    pta = l1["persistence_accuracy_tuned"]
+    pta2 = l2["persistence_accuracy_tuned"]
+    print(f"[benchmark] 2-of-3 persistence @{shared_threshold}: "
+          f"{model_label} acc={ps1['accuracy']} r={ps1['recall']} f1={ps1['f1']}"
+          f" | LR  acc={ps2['accuracy']} r={ps2['recall']} f1={ps2['f1']}")
+    print(f"[benchmark] 2-of-3 persistence @val acc-tuned th={pta['threshold']} "
+          f"(objective max-acc, recall>=0.98 on val): "
+          f"{model_label} acc={pta['accuracy']} r={pta['recall']} "
+          f"f1={pta['f1']} fpr={pta['fpr']}"
+          f" | LR  th={pta2['threshold']} acc={pta2['accuracy']} r={pta2['recall']} f1={pta2['f1']}")
     print(f"[benchmark] lead (windows before onset): "
           f"{model_label}={l1['pre_onset_block'].get('lead_windows_before_onset')} "
           f"LR={l2['pre_onset_block'].get('lead_windows_before_onset')}")

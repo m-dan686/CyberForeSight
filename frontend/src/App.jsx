@@ -220,13 +220,23 @@ export default function App() {
     return "normal";
   };
 
+  const highestThreat = () => {
+    if (!devices.length) return "NOMINAL";
+    const threats = devices.map((d) => getThreat(d));
+    if (threats.includes("critical")) return "CRITICAL";
+    if (threats.includes("high")) return "HIGH";
+    if (threats.includes("medium")) return "ELEVATED";
+    return "NOMINAL";
+  };
+
   const radarPosition = (index, total) => {
-    const angle = (index / Math.max(total, 1)) * Math.PI * 2;
-    const radius = 37;
+    const angle = (index / Math.max(total, 1)) * Math.PI * 2 - Math.PI / 2;
+    const radii = [42, 68, 54, 76, 62, 48, 70];
+    const r = radii[index % radii.length];
 
     return {
-      left: `${50 + Math.cos(angle) * radius}%`,
-      top: `${50 + Math.sin(angle) * radius}%`,
+      left: `${50 + Math.cos(angle) * (r / 2)}%`,
+      top: `${50 + Math.sin(angle) * (r / 2)}%`,
     };
   };
 
@@ -317,13 +327,124 @@ export default function App() {
         <DeviceHistory socket={socket} />
       ) : (
         <main className="main-grid">
-          {/* LEFT TELEMETRY COLUMN */}
-          <div className="left-column">
-            {/* CONNECTED DEVICES (Rule 14: Active telemetry only) */}
+          {/* 1. LEFT: NETWORK THREAT RADAR (HERO MAIN STUFF) */}
+          <div className="radar-column">
+            <section className="glass radar-section" aria-label="Network Threat Radar">
+              <div className="section-head">
+                <div className="radar-head-title">
+                  <span className="radar-pulse-dot">●</span>
+                  <span>NETWORK THREAT RADAR</span>
+                </div>
+                <span className="live">● 360° ACTIVE SWEEP</span>
+              </div>
+
+              <div className="radar-scope-container">
+                <div className="radar-hud-azimuth">
+                  <span className="azimuth-mark az-n">000° N</span>
+                  <span className="azimuth-mark az-e">090° E</span>
+                  <span className="azimuth-mark az-s">180° S</span>
+                  <span className="azimuth-mark az-w">270° W</span>
+                </div>
+
+                <div className="radar">
+                  {/* Concentric distance rings */}
+                  <div className="radar-outer-ring"></div>
+                  <div className="ring r3">
+                    <span className="ring-label">ZONE 3 · PERIMETER</span>
+                  </div>
+                  <div className="ring r2">
+                    <span className="ring-label">ZONE 2 · SUBNET</span>
+                  </div>
+                  <div className="ring r1">
+                    <span className="ring-label">ZONE 1 · CORE</span>
+                  </div>
+
+                  {/* Crosshair reticle lines */}
+                  <div className="cross x"></div>
+                  <div className="cross y"></div>
+                  <div className="cross diag-1"></div>
+                  <div className="cross diag-2"></div>
+
+                  {/* Sonar ping echo wave */}
+                  <div className="sonar-ping"></div>
+
+                  {/* 360-degree rotating sweep beam */}
+                  <div className="sweep"></div>
+
+                  {/* Center JARVIS core */}
+                  <div className="radar-core">
+                    <div className="core">J</div>
+                    <span>JARVIS</span>
+                  </div>
+
+                  {/* Dynamic threat nodes */}
+                  {devices.map((device, index) => {
+                    const threat = getThreat(device);
+                    return (
+                      <div
+                        key={device.hostname}
+                        className={`radar-node ${threat}`}
+                        style={radarPosition(index, devices.length)}
+                        title={`${device.hostname} (${device.ip}) - Threat: ${threat}`}
+                      >
+                        <div className="node-ping"></div>
+                        <div className="node-dot"></div>
+                        <span className="node-tag">{device.hostname}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Radar HUD telemetry & status */}
+              <div className="radar-hud-footer">
+                <div className="radar-hud-grid">
+                  <div className="hud-metric">
+                    <span className="hud-lbl">TARGETS DETECTED</span>
+                    <strong className="hud-val cyan">{devices.length} HOSTS</strong>
+                  </div>
+                  <div className="hud-metric">
+                    <span className="hud-lbl">THREAT STATUS</span>
+                    <strong className={`hud-val threat-${highestThreat().toLowerCase()}`}>
+                      {highestThreat()}
+                    </strong>
+                  </div>
+                  <div className="hud-metric">
+                    <span className="hud-lbl">SCAN CARRIER</span>
+                    <strong className="hud-val">2.4 GHz / 360°</strong>
+                  </div>
+                  <div className="hud-metric">
+                    <span className="hud-lbl">DEFENSE SHIELD</span>
+                    <strong className="hud-val green">ARMED & ACTIVE</strong>
+                  </div>
+                </div>
+                <div className="radar-hud-sub">
+                  <span>● AI WORLD MODEL CORRELATED · 60S SLIDING WINDOW</span>
+                </div>
+              </div>
+            </section>
+          </div>
+
+          {/* 2. CENTER: PROMINENT JARVIS CHAT CONSOLE (IN THE CENTER) */}
+          <div className="chat-center-column">
+            <JarvisChat
+              messages={chatMessages}
+              onSendMessage={handleSendMessage}
+              isProcessing={isProcessing}
+              connectionStatus={connectionStatus}
+            />
+          </div>
+
+          {/* 3. RIGHT: CONNECTED DEVICES & RECENT SECURITY INTELLIGENCE */}
+          <div className="telemetry-column">
+            {/* CONNECTED DEVICES */}
             <section className="glass devices" aria-label="Connected Devices">
               <div className="section-head">
-                <span>CONNECTED DEVICES</span>
-                <span className="device-count-badge">{devices.length}</span>
+                <div className="sec-head-left">
+                  <span className="sec-dot">●</span>
+                  <span>CONNECTED DEVICES</span>
+                </div>
+                <span className="device-count-badge">{devices.length} ACTIVE</span>
               </div>
 
               <div className="device-list">
@@ -350,53 +471,13 @@ export default function App() {
               </div>
             </section>
 
-            {/* RADAR */}
-            <section className="glass radar-section" aria-label="Network Threat Radar">
-              <div className="section-head">
-                <span>NETWORK THREAT RADAR</span>
-                <span className="live">● LIVE</span>
-              </div>
-
-              <div className="radar">
-                <div className="radar-grid"></div>
-                <div className="ring r1"></div>
-                <div className="ring r2"></div>
-                <div className="ring r3"></div>
-                <div className="cross x"></div>
-                <div className="cross y"></div>
-                <div className="sweep"></div>
-
-                <div className="radar-core">
-                  <div className="core">J</div>
-                  <span>JARVIS</span>
-                </div>
-
-                {devices.map((device, index) => {
-                  const threat = getThreat(device);
-                  return (
-                    <div
-                      key={device.hostname}
-                      className={`radar-node ${threat}`}
-                      style={radarPosition(index, devices.length)}
-                    >
-                      <div></div>
-                      <span>{device.hostname}</span>
-                    </div>
-                  );
-                })}
-              </div>
-
-              <div className="radar-info">
-                <span>{devices.length} DEVICES</span>
-                <span>{events.length} EVENTS</span>
-                <span>REAL-TIME</span>
-              </div>
-            </section>
-
             {/* RECENT SECURITY EVENTS */}
             <section className="glass events-section" aria-label="Recent Security Events">
               <div className="section-head">
-                <span>RECENT SECURITY INTELLIGENCE</span>
+                <div className="sec-head-left">
+                  <span className="sec-dot amber">●</span>
+                  <span>RECENT SECURITY INTELLIGENCE</span>
+                </div>
                 <span className="live">{events.length} EVENTS</span>
               </div>
 
@@ -421,16 +502,6 @@ export default function App() {
                 )}
               </div>
             </section>
-          </div>
-
-          {/* RIGHT COLUMN: PROMINENT JARVIS CHAT CONSOLE (Rules 5, 6, 8, 9, 10, 29) */}
-          <div className="right-column">
-            <JarvisChat
-              messages={chatMessages}
-              onSendMessage={handleSendMessage}
-              isProcessing={isProcessing}
-              connectionStatus={connectionStatus}
-            />
           </div>
         </main>
       )}

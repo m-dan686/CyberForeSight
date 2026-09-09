@@ -257,7 +257,8 @@ textarea {
 }
 
 /* =========================================================
-   MAIN OPERATIONS GRID
+/* =========================================================
+   MAIN OPERATIONS GRID (3-COLUMN COMMAND CENTER)
    ========================================================= */
 
 .main-grid {
@@ -265,28 +266,411 @@ textarea {
   width: 100%;
   min-height: auto;
   display: grid;
-  grid-template-columns: 400px 1fr;
+  grid-template-columns: 410px minmax(420px, 1fr) 360px;
   gap: 16px;
-  align-items: start;
+  align-items: stretch;
   overflow: visible;
 }
 
-.left-column {
+/* 1. LEFT: RADAR HERO COLUMN */
+.radar-column {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  height: calc(100vh - 84px);
+  min-height: 600px;
+  position: sticky;
+  top: 76px;
+}
+
+.radar-section {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 8px;
+}
+
+.radar-head-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  color: var(--text-hi, #eefbff);
+}
+
+.radar-pulse-dot {
+  color: var(--cyan, #53e3ff);
+  font-size: 10px;
+  animation: pulseGlow 2s infinite;
+}
+
+@keyframes pulseGlow {
+  0%, 100% { opacity: 1; filter: drop-shadow(0 0 6px var(--cyan, #53e3ff)); }
+  50% { opacity: 0.4; }
+}
+
+.radar-scope-container {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 10px;
+  min-height: 330px;
+}
+
+.radar-hud-azimuth {
+  position: absolute;
+  inset: 12px;
+  pointer-events: none;
+}
+
+.azimuth-mark {
+  position: absolute;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+  color: rgba(83, 227, 255, 0.65);
+  font-family: var(--font-times);
+}
+
+.az-n { top: 2px; left: 50%; transform: translateX(-50%); }
+.az-e { right: 4px; top: 50%; transform: translateY(-50%); }
+.az-s { bottom: 2px; left: 50%; transform: translateX(-50%); }
+.az-w { left: 4px; top: 50%; transform: translateY(-50%); }
+
+/* TRUE 1:1 CIRCULAR RADAR SCOPE */
+.radar {
+  position: relative;
+  width: 290px;
+  height: 290px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  box-shadow:
+    0 0 30px rgba(83, 227, 255, 0.16),
+    inset 0 0 40px rgba(2, 22, 38, 0.95);
+  background: radial-gradient(circle at center, rgba(8, 30, 48, 0.95) 0%, rgba(2, 14, 24, 0.98) 75%, rgba(1, 8, 15, 1) 100%);
+  border: 1.5px solid rgba(83, 227, 255, 0.45);
+}
+
+.radar-outer-ring {
+  position: absolute;
+  inset: 4px;
+  border-radius: 50%;
+  border: 1px dashed rgba(83, 227, 255, 0.35);
+  pointer-events: none;
+}
+
+.radar .ring {
+  position: absolute;
+  border-radius: 50%;
+  border: 1px solid rgba(83, 227, 255, 0.25);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.radar .ring.r1 {
+  width: 85px;
+  height: 85px;
+  border-color: rgba(83, 227, 255, 0.4);
+}
+
+.radar .ring.r2 {
+  width: 170px;
+  height: 170px;
+  border-color: rgba(83, 227, 255, 0.28);
+  border-style: dashed;
+}
+
+.radar .ring.r3 {
+  width: 245px;
+  height: 245px;
+  border-color: rgba(83, 227, 255, 0.22);
+}
+
+.ring-label {
+  margin-top: 2px;
+  font-size: 7.5px;
+  letter-spacing: 0.8px;
+  color: rgba(83, 227, 255, 0.45);
+  font-family: var(--font-times);
+  text-transform: uppercase;
+}
+
+.cross {
+  position: absolute;
+  background: rgba(83, 227, 255, 0.2);
+  pointer-events: none;
+}
+
+.cross.x { width: 280px; height: 1px; }
+.cross.y { height: 280px; width: 1px; }
+
+.cross.diag-1 {
+  width: 280px;
+  height: 1px;
+  transform: rotate(45deg);
+  background: rgba(83, 227, 255, 0.1);
+}
+
+.cross.diag-2 {
+  width: 280px;
+  height: 1px;
+  transform: rotate(-45deg);
+  background: rgba(83, 227, 255, 0.1);
+}
+
+.sonar-ping {
+  position: absolute;
+  border-radius: 50%;
+  border: 1.5px solid rgba(83, 227, 255, 0.7);
+  animation: sonarWave 3.6s ease-out infinite;
+  pointer-events: none;
+}
+
+@keyframes sonarWave {
+  0% { width: 30px; height: 30px; opacity: 0.9; }
+  75% { width: 270px; height: 270px; opacity: 0.2; }
+  100% { width: 285px; height: 285px; opacity: 0; }
+}
+
+.sweep {
+  position: absolute;
+  width: 286px;
+  height: 286px;
+  border-radius: 50%;
+  background: conic-gradient(from 0deg, rgba(83, 227, 255, 0.55) 0deg, rgba(83, 227, 255, 0.2) 35deg, transparent 75deg);
+  animation: radarSweep 3.6s linear infinite;
+  pointer-events: none;
+  filter: drop-shadow(0 0 10px rgba(83, 227, 255, 0.4));
+}
+
+@keyframes radarSweep {
+  to { transform: rotate(360deg); }
+}
+
+.radar-core {
+  position: relative;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  pointer-events: none;
+}
+
+.radar-core .core {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 1.5px solid var(--line-strong, rgba(90, 220, 255, 0.55));
+  background: radial-gradient(circle, rgba(83, 227, 255, 0.4), rgba(4, 18, 30, 0.95));
+  color: var(--cyan, #53e3ff);
+  font-weight: 700;
+  font-size: 14px;
+  box-shadow: 0 0 16px rgba(83, 227, 255, 0.5);
+}
+
+.radar-core span {
+  font-size: 9px;
+  letter-spacing: 1.2px;
+  font-weight: 600;
+  color: var(--cyan, #53e3ff);
+}
+
+.radar-node {
+  position: absolute;
+  z-index: 10;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.radar-node:hover {
+  transform: translate(-50%, -50%) scale(1.15);
+  z-index: 20;
+}
+
+.node-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--green, #45e6a8);
+  box-shadow: 0 0 10px var(--green, #45e6a8);
+}
+
+.radar-node.medium .node-dot {
+  background: var(--amber, #ffd45c);
+  box-shadow: 0 0 10px var(--amber, #ffd45c);
+}
+
+.radar-node.high .node-dot,
+.radar-node.critical .node-dot {
+  background: var(--red, #ff5e72);
+  box-shadow: 0 0 12px var(--red, #ff5e72);
+}
+
+.node-ping {
+  position: absolute;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1.5px solid currentColor;
+  color: var(--green, #45e6a8);
+  animation: nodePing 2s ease-out infinite;
+  pointer-events: none;
+}
+
+.radar-node.medium .node-ping { color: var(--amber, #ffd45c); }
+.radar-node.high .node-ping,
+.radar-node.critical .node-ping { color: var(--red, #ff5e72); }
+
+@keyframes nodePing {
+  0% { transform: scale(0.6); opacity: 1; }
+  100% { transform: scale(1.8); opacity: 0; }
+}
+
+.node-tag {
+  margin-top: 4px;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  color: var(--text-hi, #eefbff);
+  background: rgba(2, 12, 22, 0.88);
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid rgba(83, 227, 255, 0.3);
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+/* RADAR HUD FOOTER */
+.radar-hud-footer {
+  padding: 10px 14px 6px;
+  border-top: 1px solid var(--line-faint, rgba(90, 205, 245, 0.08));
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: rgba(2, 10, 18, 0.4);
+}
+
+.radar-hud-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.hud-metric {
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(4, 18, 30, 0.7);
+  border: 1px solid var(--line-faint, rgba(90, 205, 245, 0.08));
+}
+
+.hud-lbl {
+  display: block;
+  font-size: 9px;
+  letter-spacing: 1px;
+  color: var(--text-dim, #62839a);
+  text-transform: uppercase;
+}
+
+.hud-val {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  margin-top: 2px;
+  color: var(--text-hi, #eefbff);
+}
+
+.hud-val.cyan { color: var(--cyan, #53e3ff); }
+.hud-val.green { color: var(--green, #45e6a8); }
+.hud-val.threat-critical,
+.hud-val.threat-high { color: var(--red, #ff5e72); }
+.hud-val.threat-elevated { color: var(--amber, #ffd45c); }
+.hud-val.threat-nominal { color: var(--green, #45e6a8); }
+
+.radar-hud-sub {
+  font-size: 9px;
+  letter-spacing: 0.8px;
+  color: var(--text-dim, #62839a);
+  text-align: center;
+  padding-top: 2px;
+}
+
+/* 2. CENTER: JARVIS CHAT CONSOLE COLUMN */
+.chat-center-column {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  height: calc(100vh - 84px);
+  min-height: 600px;
+  position: sticky;
+  top: 76px;
+}
+
+/* 3. RIGHT: TELEMETRY & SECURITY INTELLIGENCE COLUMN */
+.telemetry-column {
   display: flex;
   flex-direction: column;
   gap: 14px;
   min-width: 0;
-  overflow: visible;
-}
-
-.right-column {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  height: calc(100vh - 96px);
-  min-height: 540px;
+  height: calc(100vh - 84px);
+  min-height: 600px;
   position: sticky;
   top: 76px;
+}
+
+.telemetry-column .devices {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  max-height: none;
+}
+
+.telemetry-column .devices .device-list {
+  flex: 1;
+  max-height: none;
+  overflow-y: auto;
+}
+
+.telemetry-column .events-section {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.telemetry-column .events-section .events-list {
+  flex: 1;
+  max-height: none;
+  overflow-y: auto;
+}
+
+.sec-head-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sec-dot {
+  color: var(--cyan, #53e3ff);
+  font-size: 10px;
+}
+
+.sec-dot.amber {
+  color: var(--amber, #ffd45c);
 }
 
 /* GLASS PANELS */
@@ -347,14 +731,12 @@ textarea {
   font-weight: 600;
 }
 
-/* CONNECTED DEVICES */
+/* CONNECTED DEVICES CARDS */
 .devices {
   flex-shrink: 0;
-  max-height: 220px;
 }
 
 .device-list {
-  max-height: 180px;
   padding: 8px 10px;
   overflow-y: auto;
 }
@@ -476,126 +858,6 @@ textarea {
   color: var(--red, #ff5e72);
   background: rgba(255, 94, 114, 0.15);
   border: 1px solid rgba(255, 94, 114, 0.4);
-}
-
-/* NETWORK THREAT RADAR */
-.radar-section {
-  flex-shrink: 0;
-  padding-bottom: 8px;
-}
-
-.radar {
-  position: relative;
-  width: 100%;
-  height: 210px;
-  display: grid;
-  place-items: center;
-  overflow: hidden;
-}
-
-.radar-grid {
-  position: absolute;
-  inset: 10px;
-  border-radius: 50%;
-  border: 1px dashed rgba(83, 227, 255, 0.18);
-}
-
-.ring {
-  position: absolute;
-  border-radius: 50%;
-  border: 1px solid rgba(83, 227, 255, 0.22);
-}
-
-.r1 { width: 60px; height: 60px; }
-.r2 { width: 120px; height: 120px; }
-.r3 { width: 180px; height: 180px; }
-
-.cross {
-  position: absolute;
-  background: rgba(83, 227, 255, 0.18);
-}
-
-.cross.x { width: 190px; height: 1px; }
-.cross.y { height: 190px; width: 1px; }
-
-.sweep {
-  position: absolute;
-  width: 190px;
-  height: 190px;
-  border-radius: 50%;
-  background: conic-gradient(from 0deg, rgba(83, 227, 255, 0.35) 0deg, transparent 65deg);
-  animation: radarSweep 4s linear infinite;
-  pointer-events: none;
-}
-
-@keyframes radarSweep {
-  to { transform: rotate(360deg); }
-}
-
-.radar-core {
-  position: relative;
-  z-index: 2;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-}
-
-.radar-core .core {
-  width: 32px;
-  height: 32px;
-  display: grid;
-  place-items: center;
-  border-radius: 50%;
-  border: 1px solid var(--line-strong, rgba(90, 220, 255, 0.42));
-  background: radial-gradient(circle, rgba(83, 227, 255, 0.3), rgba(6, 22, 35, 0.9));
-  color: var(--cyan, #53e3ff);
-  font-weight: 700;
-  font-size: 13px;
-  box-shadow: 0 0 14px rgba(83, 227, 255, 0.4);
-}
-
-.radar-core span {
-  font-size: 9px;
-  letter-spacing: 1px;
-  color: var(--text-dim, #62839a);
-}
-
-.radar-node {
-  position: absolute;
-  z-index: 3;
-  transform: translate(-50%, -50%);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-}
-
-.radar-node div {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: var(--green, #45e6a8);
-  box-shadow: 0 0 8px var(--green, #45e6a8);
-}
-
-.radar-node.medium div { background: var(--amber, #ffd45c); box-shadow: 0 0 8px var(--amber, #ffd45c); }
-.radar-node.high div { background: var(--orange, #ff9a5b); box-shadow: 0 0 8px var(--orange, #ff9a5b); }
-.radar-node.critical div { background: var(--red, #ff5e72); box-shadow: 0 0 8px var(--red, #ff5e72); }
-
-.radar-node span {
-  font-size: 9px;
-  color: var(--text-mid, #a6cbe0);
-  white-space: nowrap;
-}
-
-.radar-info {
-  display: flex;
-  justify-content: space-around;
-  padding: 4px 14px 2px;
-  font-size: 10px;
-  color: var(--text-dim, #62839a);
-  letter-spacing: 1px;
 }
 
 /* RECENT SECURITY EVENTS */
@@ -1236,30 +1498,89 @@ textarea {
 }
 
 /* =========================================================
-   RESPONSIVE DESIGN (Rules 12, 31)
+   RESPONSIVE DESIGN (3-COLUMN COMMAND CENTER)
    ========================================================= */
 
-@media (max-width: 1200px) {
+@media (max-width: 1280px) {
   .main-grid {
-    grid-template-columns: 350px 1fr;
+    grid-template-columns: 360px minmax(380px, 1fr) 320px;
+    gap: 12px;
+  }
+
+  .radar {
+    width: 260px;
+    height: 260px;
+  }
+
+  .radar .ring.r1 { width: 75px; height: 75px; }
+  .radar .ring.r2 { width: 150px; height: 150px; }
+  .radar .ring.r3 { width: 220px; height: 220px; }
+  .cross.x { width: 250px; }
+  .cross.y { height: 250px; }
+  .cross.diag-1, .cross.diag-2 { width: 250px; }
+  .sweep { width: 256px; height: 256px; }
+}
+
+@media (max-width: 1080px) {
+  .main-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .radar-column {
+    position: static;
+    height: auto;
+    min-height: 520px;
+  }
+
+  .chat-center-column {
+    position: static;
+    height: auto;
+    min-height: 520px;
+  }
+
+  .telemetry-column {
+    grid-column: 1 / -1;
+    position: static;
+    height: auto;
+    min-height: auto;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
     gap: 14px;
+  }
+
+  .telemetry-column .devices,
+  .telemetry-column .events-section {
+    height: 320px;
   }
 }
 
-@media (max-width: 980px) {
+@media (max-width: 780px) {
   .main-grid {
     grid-template-columns: 1fr;
     gap: 16px;
   }
 
-  .right-column {
+  .radar-column,
+  .chat-center-column,
+  .telemetry-column {
     position: static;
-    height: 580px;
+    height: auto;
+    min-height: auto;
     width: 100%;
   }
 
-  .history-kpis {
-    grid-template-columns: 1fr;
+  .chat-center-column {
+    height: 560px;
+  }
+
+  .telemetry-column {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .telemetry-column .devices,
+  .telemetry-column .events-section {
+    height: 280px;
   }
 
   .header {
@@ -1272,13 +1593,6 @@ textarea {
   .header-right {
     width: 100%;
     justify-content: space-between;
-  }
-}
-
-@media (max-height: 820px) {
-  .right-column {
-    position: static;
-    height: 580px;
   }
 }
 
@@ -1299,5 +1613,10 @@ textarea {
 
   .console-message {
     max-width: 96%;
+  }
+
+  .radar {
+    width: 240px;
+    height: 240px;
   }
 }

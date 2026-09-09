@@ -10,7 +10,9 @@
     <p id="status">Connecting...</p>
 
     <script>
-        const SERVER = "http://10.157.15.170:5000/device";
+        const SERVER = (window.location.origin && window.location.origin !== "null")
+            ? window.location.origin + "/device"
+            : "/device";
 
         let deviceId = localStorage.getItem("jarvis_device_id");
 

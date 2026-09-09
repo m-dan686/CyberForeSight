@@ -16,7 +16,9 @@ app.use(express.json());
 const io = new Server(server, {
     cors: {
         origin: "*"
-    }
+    },
+    pingInterval: 30000,
+    pingTimeout: 90000
 });
 
 const worldModel = {
@@ -474,6 +476,12 @@ if (fs.existsSync(
             path.join(distDir, "index.html")
         );
     });
+
+    app.get(["/forecast-view", "/history"], (req, res) => {
+        res.sendFile(
+            path.join(distDir, "index.html")
+        );
+    });
 } else {
     app.get("/", (req, res) => {
         res.json({
@@ -524,64 +532,65 @@ function uniqueDeviceName(base, devices, currentHostname) {
     return base + ` (${n})`;
 }
 
-app.post("/device", (req, res) => {
-
-    const device = req.body;
-
-    if (!device.hostname) {
-        return res.status(400).json({
-            success: false,
-            error: "hostname is required"
-        });
-    }
+function registerOrUpdateDevice(device) {
+    if (!device || !device.hostname) return null;
 
     const ip = (
         device.ip ||
-        (req.ip || "").replace(/^::ffff:/, "") ||
         "UNKNOWN"
     );
 
-    const netName = resolveNetBiosName(ip);
-    let realName = (device.name || "").trim() || netName || null;
+    // If device already exists and is from an active rich telemetry agent, don't overwrite with 0 CPU/RAM
+    const existing = worldModel.devices[device.hostname] || 
+                     Object.values(worldModel.devices).find(d => d.ip === ip && ip !== "UNKNOWN");
+
+    let realName = (device.name || "").trim() || (existing ? existing.name : null) || resolveNetBiosName(ip) || null;
 
     if (!realName && (ip === "127.0.0.1" || ip === "::1")) {
         realName = osModule.hostname();
     }
+    realName = realName || (existing ? existing.name : null) || ip;
 
     const nowIso = new Date().toISOString();
+    const hostname = existing ? existing.hostname : device.hostname;
+
+    const cpuVal = (device.cpu_percent !== undefined) ? device.cpu_percent : (device.cpu !== undefined ? device.cpu : (existing?.cpu || 0));
+    const ramVal = (device.ram_percent !== undefined) ? device.ram_percent : (device.ram !== undefined ? device.ram : (existing?.ram || 0));
 
     const updatedDevice = {
-        hostname: device.hostname,
-        name: uniqueDeviceName(
-            realName || "",
-            worldModel.devices,
-            device.hostname
-        ),
+        hostname: hostname,
+        name: existing && existing.name ? existing.name : uniqueDeviceName(realName || "", worldModel.devices, hostname),
         ip: ip,
-        os: device.os || "UNKNOWN",
-        cpu: device.cpu || 0,
-        ram: device.ram || 0,
+        mac: device.mac || (existing ? existing.mac : undefined),
+        os: (device.os && device.os !== "UNKNOWN") ? device.os : (existing?.os || "Network Device"),
+        cpu: Number(cpuVal) || 0,
+        ram: Number(ramVal) || 0,
+        ramGb: device.ramGb || device.ram_gb || existing?.ramGb || 0,
+        ramUsedGb: device.ramUsedGb || device.ram_used_gb || existing?.ramUsedGb || 0,
+        cores: device.cores || device.cpu_cores || existing?.cores || 1,
         status: device.status || "ONLINE",
-        lastSeen: nowIso
+        source: device.source || (existing ? existing.source : "agent"),
+        lastSeen: nowIso,
+        updatedAt: Date.now()
     };
 
-    worldModel.devices[device.hostname] = updatedDevice;
+    worldModel.devices[hostname] = updatedDevice;
     updateWorldTimestamp();
 
     // Session tracking
     let activeSession = deviceHistory.find(
-        (s) => s.hostname === device.hostname && s.status === "ONLINE"
+        (s) => s.hostname === hostname && s.status === "ONLINE"
     );
 
     if (!activeSession) {
         const sessId = "sess_" + Date.now() + "_" + Math.random().toString(36).substring(2, 7);
         activeSession = {
             id: sessId,
-            deviceId: device.hostname,
-            hostname: device.hostname,
-            name: updatedDevice.name || device.hostname,
+            deviceId: hostname,
+            hostname: hostname,
+            name: updatedDevice.name || hostname,
             ip: ip,
-            os: device.os || "UNKNOWN",
+            os: updatedDevice.os || "UNKNOWN",
             firstSeen: nowIso,
             lastSeen: nowIso,
             connectedAt: nowIso,
@@ -600,7 +609,7 @@ app.post("/device", (req, res) => {
     } else {
         activeSession.lastSeen = nowIso;
         if (ip && ip !== "UNKNOWN") activeSession.ip = ip;
-        if (device.os && device.os !== "UNKNOWN") activeSession.os = device.os;
+        if (updatedDevice.os && updatedDevice.os !== "UNKNOWN") activeSession.os = updatedDevice.os;
         if (updatedDevice.name) activeSession.name = updatedDevice.name;
         const durSec = Math.max(
             0,
@@ -609,10 +618,30 @@ app.post("/device", (req, res) => {
         activeSession.duration = formatDuration(durSec);
     }
 
-    console.log("DEVICE:", (updatedDevice.name || updatedDevice.hostname), "@", ip);
-
     io.emit("device_update", updatedDevice);
     io.emit("world_update", worldModel);
+
+    return updatedDevice;
+}
+
+app.post("/device", (req, res) => {
+    const device = req.body;
+
+    if (!device.hostname) {
+        return res.status(400).json({
+            success: false,
+            error: "hostname is required"
+        });
+    }
+
+    const ip = (
+        device.ip ||
+        (req.ip || "").replace(/^::ffff:/, "") ||
+        "UNKNOWN"
+    );
+
+    const updatedDevice = registerOrUpdateDevice({ ...device, ip });
+    console.log("DEVICE:", (updatedDevice.name || updatedDevice.hostname), "@", ip);
 
     res.json({
         success: true,
@@ -754,7 +783,7 @@ setInterval(() => {
             worldModel.devices[hostname].lastSeen
         ).getTime();
 
-        if (now - lastSeen > 15000) {
+        if (now - lastSeen > 60000) {
             console.log(`Device offline: ${hostname}`);
             const disconnectIso = new Date().toISOString();
 
@@ -789,6 +818,87 @@ setInterval(() => {
 
 
 const { startDiscoveryBeacon } = require("./discovery");
+const { startAutoDiscovery, scanNetworkDevices } = require("./network_scanner");
+
+// ==========================================
+// MANUAL SCAN TRIGGER
+// ==========================================
+
+app.get("/scan-devices", (req, res) => {
+    try {
+        const found = scanNetworkDevices();
+        for (const dev of found) {
+            registerOrUpdateDevice(dev);
+        }
+        res.json({
+            success: true,
+            count: found.length,
+            devices: found
+        });
+    } catch (err) {
+        res.status(500).json({
+            success: false,
+            error: err.message
+        });
+    }
+});
+
+// ==========================================
+// HOST TELEMETRY SAMPLER
+// ==========================================
+
+function getSystemCpuTimes() {
+    const cpus = osModule.cpus() || [];
+    let idle = 0;
+    let total = 0;
+    for (const cpu of cpus) {
+        for (const type in cpu.times) {
+            total += cpu.times[type];
+        }
+        idle += cpu.times.idle;
+    }
+    return { idle, total };
+}
+
+let prevCpuTimes = getSystemCpuTimes();
+
+function sampleHostMetrics() {
+    const currentTimes = getSystemCpuTimes();
+    const idleDiff = currentTimes.idle - prevCpuTimes.idle;
+    const totalDiff = currentTimes.total - prevCpuTimes.total;
+    prevCpuTimes = currentTimes;
+
+    const cpuUsage = totalDiff > 0 ? Math.max(0, Math.min(100, Math.round(100 - (100 * idleDiff / totalDiff)))) : 0;
+    const totalMem = osModule.totalmem();
+    const freeMem = osModule.freemem();
+    const usedMem = totalMem - freeMem;
+    const ramPercent = Math.round((usedMem / totalMem) * 100);
+    const ramTotalGb = +(totalMem / (1024 ** 3)).toFixed(1);
+    const ramUsedGb = +(usedMem / (1024 ** 3)).toFixed(1);
+    const cpus = osModule.cpus() || [];
+
+    return {
+        hostname: `host-${osModule.hostname().toLowerCase()}`,
+        name: `${osModule.hostname()} (Host)`,
+        ip: "127.0.0.1",
+        os: `${osModule.type()} ${osModule.release()}`,
+        cpu_percent: cpuUsage,
+        ram_percent: ramPercent,
+        ramGb: ramTotalGb,
+        ramUsedGb: ramUsedGb,
+        cores: cpus.length,
+        status: "ONLINE",
+        source: "host-telemetry"
+    };
+}
+
+// Broadcast live host metrics every 2.5s
+setInterval(() => {
+    try {
+        const hostDev = sampleHostMetrics();
+        registerOrUpdateDevice(hostDev);
+    } catch {}
+}, 2500);
 
 // ==========================================
 // START SERVER
@@ -804,6 +914,17 @@ server.listen(
             startDiscoveryBeacon(5000);
         } catch (e) {
             console.error("Could not start discovery beacon:", e.message);
+        }
+
+        try {
+            startAutoDiscovery({
+                intervalMs: 4000,
+                onDeviceFound: (dev) => {
+                    registerOrUpdateDevice(dev);
+                }
+            });
+        } catch (e) {
+            console.error("Could not start auto-discovery scanner:", e.message);
         }
     }
 );

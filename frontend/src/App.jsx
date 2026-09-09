@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { io } from "socket.io-client";
 import ForecastDashboard from "./ForecastDashboard.jsx";
 import DeviceHistory from "./components/DeviceHistory.jsx";
@@ -13,24 +13,199 @@ const socket = io("/", {
   timeout: 10000,
 });
 
+const viewFromPath = (pathname) => {
+  if (pathname === "/forecast-view" || pathname === "/forecast") return "forecast";
+  if (pathname === "/history") return "history";
+  return "live";
+};
+
+const pathFromView = (view) => (view === "forecast" ? "/forecast-view" : view === "history" ? "/history" : "/");
+
+function Sparkline({ data = [], color = "#53e3ff", width = 100, height = 24, max = 100 }) {
+  if (!data || data.length < 2) {
+    return (
+      <svg width={width} height={height} className="sparkline-svg">
+        <line x1="0" y1={height / 2} x2={width} y2={height / 2} stroke="rgba(255,255,255,0.15)" strokeDasharray="3,3" />
+      </svg>
+    );
+  }
+  const pts = data.map((val, idx) => {
+    const x = (idx / (data.length - 1)) * width;
+    const clamped = Math.max(0, Math.min(max, val));
+    const y = height - (clamped / max) * (height - 6) - 3;
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  });
+  const pathData = `M ${pts.join(" L ")}`;
+  const lastVal = data[data.length - 1];
+  const lastX = width;
+  const lastY = height - (Math.max(0, Math.min(max, lastVal)) / max) * (height - 6) - 3;
+
+  return (
+    <svg width={width} height={height} className="sparkline-svg" viewBox={`0 0 ${width} ${height}`}>
+      <path d={pathData} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx={lastX} cy={lastY} r="3" fill={color} />
+    </svg>
+  );
+}
+
+function HardwareInspectorModal({ device, history = [], onClose }) {
+  if (!device) return null;
+  const cpuHistory = history.map((h) => h.cpu);
+  const ramHistory = history.map((h) => h.ram);
+  const cpu = device.cpu ?? 0;
+  const ram = device.ram ?? 0;
+
+  return (
+    <div className="hw-modal-overlay" onClick={onClose}>
+      <div className="hw-modal-content glass" onClick={(e) => e.stopPropagation()}>
+        <div className="hw-modal-header">
+          <div className="hw-modal-title">
+            <span className="hw-pulse-live">●</span>
+            <h3>{device.name || device.hostname}</h3>
+            <span className="hw-tag">
+              {device.source === "host-telemetry"
+                ? "HOST ENGINE"
+                : device.isHotspot
+                ? "HOTSPOT NODE"
+                : "CONNECTED NODE"}
+            </span>
+          </div>
+          <button className="hw-close-btn" onClick={onClose} aria-label="Close modal">✕</button>
+        </div>
+
+        <div className="hw-grid">
+          {/* CPU Card */}
+          <div className="hw-card">
+            <div className="hw-card-head">
+              <span className="hw-card-lbl">LIVE CPU UTILIZATION</span>
+              <strong className={`hw-pct ${cpu > 80 ? "txt-red" : cpu > 50 ? "txt-amber" : "txt-cyan"}`}>
+                {cpu}%
+              </strong>
+            </div>
+            <div className="hw-bar-track lg">
+              <div
+                className={`hw-bar-fill ${cpu > 80 ? "crit" : cpu > 50 ? "warn" : "norm"}`}
+                style={{ width: `${Math.min(100, Math.max(3, cpu))}%` }}
+              />
+            </div>
+            <div className="hw-sparkline-row">
+              <span className="hw-sub-lbl">Rolling 30s Trend:</span>
+              <Sparkline
+                data={cpuHistory}
+                color={cpu > 80 ? "#ff4d6d" : cpu > 50 ? "#ffb703" : "#53e3ff"}
+                width={160}
+                height={32}
+              />
+            </div>
+            <div className="hw-card-footer">
+              <span>Logical Cores: <strong>{device.cores || "--"}</strong></span>
+              <span>Status: <strong className="green">ONLINE</strong></span>
+            </div>
+          </div>
+
+          {/* RAM Card */}
+          <div className="hw-card">
+            <div className="hw-card-head">
+              <span className="hw-card-lbl">LIVE MEMORY (RAM)</span>
+              <strong className={`hw-pct ${ram > 80 ? "txt-red" : ram > 50 ? "txt-amber" : "txt-cyan"}`}>
+                {ram}%
+              </strong>
+            </div>
+            <div className="hw-bar-track lg">
+              <div
+                className={`hw-bar-fill ram ${ram > 80 ? "crit" : ram > 50 ? "warn" : "norm"}`}
+                style={{ width: `${Math.min(100, Math.max(3, ram))}%` }}
+              />
+            </div>
+            <div className="hw-sparkline-row">
+              <span className="hw-sub-lbl">Rolling 30s Trend:</span>
+              <Sparkline
+                data={ramHistory}
+                color={ram > 80 ? "#ff4d6d" : ram > 50 ? "#ffb703" : "#a78bfa"}
+                width={160}
+                height={32}
+              />
+            </div>
+            <div className="hw-card-footer">
+              <span>Memory In Use: <strong>{device.ramUsedGb ? `${device.ramUsedGb} GB` : "--"} {device.ramGb ? `/ ${device.ramGb} GB` : ""}</strong></span>
+              <span>Load: <strong className={ram > 80 ? "txt-red" : "txt-cyan"}>{ram > 80 ? "HIGH" : "NORMAL"}</strong></span>
+            </div>
+          </div>
+        </div>
+
+        {/* System & Network Specifications */}
+        <div className="hw-meta-card">
+          <div className="hw-meta-grid">
+            <div className="hw-meta-item">
+              <span className="meta-lbl">IP ADDRESS</span>
+              <strong>{device.ip || "127.0.0.1"}</strong>
+            </div>
+            <div className="hw-meta-item">
+              <span className="meta-lbl">MAC ADDRESS</span>
+              <strong>{device.mac || "Virtual / Host Loopback"}</strong>
+            </div>
+            <div className="hw-meta-item">
+              <span className="meta-lbl">OPERATING SYSTEM</span>
+              <strong>{device.os || "Unknown"}</strong>
+            </div>
+            <div className="hw-meta-item">
+              <span className="meta-lbl">TELEMETRY CHANNEL</span>
+              <strong>{device.source || "Socket.IO Live Stream"}</strong>
+            </div>
+          </div>
+        </div>
+
+        {/* Instruction if CPU is 0 from pure ARP */}
+        {cpu === 0 && ram === 0 && device.source !== "host-telemetry" && (
+          <div className="hw-agent-hint">
+            <p>💡 <em>This node was discovered via network scan. To stream 100% live hardware load from this machine, run:</em></p>
+            <code>python collectors/client_agent.py http://192.168.137.1:5000</code>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
-  const [currentView, setCurrentView] = useState("live"); // 'live' | 'forecast' | 'history'
+  const [currentView, setCurrentView] = useState(() => viewFromPath(window.location.pathname));
   const [connectionStatus, setConnectionStatus] = useState(() =>
     socket.connected ? "ONLINE" : "RECONNECTING"
   ); // 'ONLINE' | 'RECONNECTING' | 'OFFLINE'
   const [devices, setDevices] = useState([]);
   const [events, setEvents] = useState([]);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [deviceNameInput, setDeviceNameInput] = useState(
-    () => localStorage.getItem("deviceName") || ""
-  );
+  const [deviceName, setDeviceName] = useState(() => localStorage.getItem("deviceName") || "");
+  const [hardwareHistory, setHardwareHistory] = useState({});
+  const [selectedDevice, setSelectedDevice] = useState(null);
 
-  const registerRef = useRef(null);
+  const pushHardwareSample = useCallback((dev) => {
+    if (!dev || !dev.hostname) return;
+    setHardwareHistory((prev) => {
+      const list = prev[dev.hostname] || [];
+      const updated = [...list, { time: Date.now(), cpu: dev.cpu || 0, ram: dev.ram || 0 }].slice(-20);
+      return { ...prev, [dev.hostname]: updated };
+    });
+  }, []);
 
-  const saveDeviceName = () => {
-    const value = deviceNameInput.trim();
-    localStorage.setItem("deviceName", value);
-    registerRef.current?.();
+  const appShellRef = useRef(null);
+
+  useEffect(() => {
+    appShellRef.current?.scrollTo({ top: 0, left: 0 });
+  }, [currentView]);
+
+  useEffect(() => {
+    const handlePopState = () => setCurrentView(viewFromPath(window.location.pathname));
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
+
+  const navigateToView = (view) => {
+    const path = pathFromView(view);
+    if (window.location.pathname !== path) {
+      window.history.pushState({}, "", path);
+    }
+    setCurrentView(view);
   };
 
   // Parent-level chat history (persists across tab switches)
@@ -73,8 +248,10 @@ export default function App() {
     };
 
     const onWorldUpdate = (world) => {
-      setDevices(Object.values(world.devices || {}));
+      const list = Object.values(world.devices || {});
+      setDevices(list);
       setEvents((world.recentEvents || []).slice().reverse());
+      list.forEach(pushHardwareSample);
     };
 
     const onDeviceUpdate = (device) => {
@@ -82,6 +259,8 @@ export default function App() {
         ...prev.filter((d) => d.hostname !== device.hostname),
         device,
       ]);
+      pushHardwareSample(device);
+      setSelectedDevice((current) => (current && current.hostname === device.hostname ? device : current));
     };
 
     const onJarvisIntelligence = (data) => {
@@ -137,6 +316,34 @@ export default function App() {
     };
   }, []);
 
+  const postDevice = useCallback(async (name) => {
+    const clientId = sessionStorage.getItem("clientId") || "Client-x";
+    try {
+      await fetch("/device", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          hostname: clientId,
+          name: name || localStorage.getItem("deviceName") || "",
+          os: navigator.platform || "Web",
+          cpu: navigator.hardwareConcurrency || 0,
+          ram: navigator.deviceMemory || 0,
+          status: "online",
+        }),
+      });
+    } catch {
+      // backend unreachable — retry on next heartbeat
+    }
+  }, []);
+
+  const saveDeviceName = () => {
+    const name = deviceName.trim();
+    localStorage.setItem("deviceName", name);
+    postDevice(name);
+  };
+
   useEffect(() => {
     let clientId = sessionStorage.getItem("clientId");
 
@@ -145,34 +352,24 @@ export default function App() {
       sessionStorage.setItem("clientId", clientId);
     }
 
-    const register = async () => {
-      try {
-        await fetch("/device", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            hostname: clientId,
-            name: localStorage.getItem("deviceName") || "",
-            os: navigator.platform || "Web",
-            cpu: navigator.hardwareConcurrency || 0,
-            ram: navigator.deviceMemory || 0,
-            status: "online",
-          }),
-        });
-      } catch {
-        // backend unreachable — retry on next heartbeat
-      }
+    // Mobile browsers freeze timers when a tab is backgrounded/screen locked,
+    // killing heartbeats and sockets. Resync the instant the tab is visible.
+    const resync = () => {
+      if (document.visibilityState !== "visible") return;
+      if (!socket.connected) socket.connect();
+      postDevice();
     };
 
-    registerRef.current = register;
+    document.addEventListener("visibilitychange", resync);
 
-    register();
-    const heartbeat = setInterval(register, 8000);
+    postDevice();
+    const heartbeat = setInterval(() => postDevice(), 8000);
 
-    return () => clearInterval(heartbeat);
-  }, []);
+    return () => {
+      document.removeEventListener("visibilitychange", resync);
+      clearInterval(heartbeat);
+    };
+  }, [postDevice]);
 
   const handleSendMessage = async (command) => {
     if (!command.trim() || isProcessing) return;
@@ -287,7 +484,7 @@ export default function App() {
   };
 
   return (
-    <div className="jarvis">
+    <div ref={appShellRef} className="jarvis">
       {/* HEADER */}
       <header className="header">
         <div className="logo-area">
@@ -343,7 +540,7 @@ export default function App() {
             <button
               type="button"
               className={currentView === "live" ? "active" : ""}
-              onClick={() => setCurrentView("live")}
+              onClick={() => navigateToView("live")}
               aria-pressed={currentView === "live"}
             >
               🌐 Threat Radar
@@ -351,15 +548,15 @@ export default function App() {
             <button
               type="button"
               className={currentView === "forecast" ? "active" : ""}
-              onClick={() => setCurrentView("forecast")}
+              onClick={() => navigateToView("forecast")}
               aria-pressed={currentView === "forecast"}
             >
-              🔮 Forecast Lab
+              🔮 Threat Forecast
             </button>
             <button
               type="button"
               className={currentView === "history" ? "active" : ""}
-              onClick={() => setCurrentView("history")}
+              onClick={() => navigateToView("history")}
               aria-pressed={currentView === "history"}
             >
               📜 Device History
@@ -387,24 +584,14 @@ export default function App() {
               </div>
 
               <div className="radar-scope-container">
-                <div className="radar-hud-azimuth">
-                  <span className="azimuth-mark az-n">000° N</span>
-                  <span className="azimuth-mark az-e">090° E</span>
-                  <span className="azimuth-mark az-s">180° S</span>
-                  <span className="azimuth-mark az-w">270° W</span>
-                </div>
-
                 <div className="radar">
                   {/* Concentric distance rings */}
                   <div className="radar-outer-ring"></div>
                   <div className="ring r3">
-                    <span className="ring-label">ZONE 3 · PERIMETER</span>
                   </div>
                   <div className="ring r2">
-                    <span className="ring-label">ZONE 2 · SUBNET</span>
                   </div>
                   <div className="ring r1">
-                    <span className="ring-label">ZONE 1 · CORE</span>
                   </div>
 
                   {/* Crosshair reticle lines */}
@@ -433,11 +620,11 @@ export default function App() {
                         key={device.hostname}
                         className={`radar-node ${threat}`}
                         style={radarPosition(index, devices.length)}
-                        title={`${device.name || device.hostname} (${device.ip || "local"}) - Threat: ${threat}`}
+                        title={`${device.name || device.ip} (${device.ip || "local"}) - Threat: ${threat}`}
                       >
                         <div className="node-ping"></div>
                         <div className="node-dot"></div>
-                        <span className="node-tag">{device.name || device.hostname}</span>
+                        <span className="node-tag">{device.name || device.ip}</span>
                       </div>
                     );
                   })}
@@ -497,15 +684,14 @@ export default function App() {
 
               <div className="name-this">
                 <input
-                  value={deviceNameInput}
-                  onChange={(e) => setDeviceNameInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") saveDeviceName();
-                  }}
-                  placeholder="Label this terminal (e.g., SOC-1)..."
-                  aria-label="Name this device"
+                  type="text"
+                  placeholder="Name this device"
+                  value={deviceName}
+                  maxLength={40}
+                  onChange={(e) => setDeviceName(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && saveDeviceName()}
                 />
-                <button onClick={saveDeviceName}>Set</button>
+                <button onClick={saveDeviceName}>SAVE</button>
               </div>
 
               <div className="device-list">
@@ -514,20 +700,84 @@ export default function App() {
                 ) : (
                   devices.map((device) => {
                     const threat = getThreat(device);
+                    const history = hardwareHistory[device.hostname] || [];
+                    const cpuHistory = history.map((h) => h.cpu);
+                    const cpu = device.cpu ?? 0;
+                    const ram = device.ram ?? 0;
+
                     return (
-                      <div className="device" key={device.hostname} data-level={threat}>
+                      <div
+                        className={`device live-device-card ${threat}`}
+                        key={device.hostname}
+                        data-level={threat}
+                        onClick={() => setSelectedDevice(device)}
+                        role="button"
+                        tabIndex={0}
+                        title="Click to inspect live hardware telemetry"
+                      >
                         <div className="device-circle">
-                          {threat === "critical" ? "⚠️" : "💻"}
+                          {threat === "critical"
+                            ? "⚠️"
+                            : device.source === "host-telemetry"
+                            ? "🖥️"
+                            : "💻"}
                         </div>
                         <div className="device-data">
                           <div className="device-title-row">
-                            <strong>{device.name || device.hostname}</strong>
+                            <strong>{device.name || device.ip}</strong>
                             <span className={`threat-pill ${threat}`}>{threat.toUpperCase()}</span>
                           </div>
-                          <small className="device-ip">{device.ip || "127.0.0.1"}</small>
-                          <small className="device-specs">
-                            CPU {device.cpu ?? "--"}% &nbsp; RAM {device.ram ?? "--"}%
-                          </small>
+                          <div className="device-sub-row">
+                            <small className="device-ip">{device.ip || "127.0.0.1"}</small>
+                            <span className="live-pulse-badge">
+                              <span className="live-dot-pulse">●</span> LIVE
+                            </span>
+                          </div>
+
+                          {/* Live Dynamic Hardware Meters */}
+                          <div className="device-hw-meters">
+                            <div className="hw-meter-item">
+                              <div className="hw-meter-label">
+                                <span>CPU</span>
+                                <strong className={cpu > 80 ? "txt-red" : cpu > 50 ? "txt-amber" : "txt-cyan"}>
+                                  {cpu}%
+                                </strong>
+                              </div>
+                              <div className="hw-bar-track">
+                                <div
+                                  className={`hw-bar-fill ${cpu > 80 ? "crit" : cpu > 50 ? "warn" : "norm"}`}
+                                  style={{ width: `${Math.min(100, Math.max(4, cpu))}%` }}
+                                />
+                              </div>
+                            </div>
+
+                            <div className="hw-meter-item">
+                              <div className="hw-meter-label">
+                                <span>RAM</span>
+                                <strong className={ram > 80 ? "txt-red" : ram > 50 ? "txt-amber" : "txt-cyan"}>
+                                  {ram}%
+                                </strong>
+                              </div>
+                              <div className="hw-bar-track">
+                                <div
+                                  className={`hw-bar-fill ram ${ram > 80 ? "crit" : ram > 50 ? "warn" : "norm"}`}
+                                  style={{ width: `${Math.min(100, Math.max(4, ram))}%` }}
+                                />
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Mini Sparkline Trend */}
+                          {cpuHistory.length > 2 && (
+                            <div className="device-sparkline-preview">
+                              <Sparkline
+                                data={cpuHistory}
+                                color={cpu > 80 ? "#ff4d6d" : cpu > 50 ? "#ffb703" : "#53e3ff"}
+                                width={120}
+                                height={18}
+                              />
+                            </div>
+                          )}
                         </div>
                       </div>
                     );
@@ -570,6 +820,15 @@ export default function App() {
           </div>
         </main>
       )}
+
+      {/* LIVE HARDWARE INSPECTOR MODAL */}
+      {selectedDevice && (
+        <HardwareInspectorModal
+          device={selectedDevice}
+          history={hardwareHistory[selectedDevice.hostname] || []}
+          onClose={() => setSelectedDevice(null)}
+        />
+      )}
     </div>
   );
-}
+}

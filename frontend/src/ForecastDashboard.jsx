@@ -453,29 +453,6 @@ export default function ForecastDashboard() {
 
   return (
     <div className="forecast-view">
-      <div className="f-head">
-        <div>
-          <h2>CYBERFORESIGHT</h2>
-          <p>AI-based network infiltration forecasting · CIC-IDS2018 benchmark</p>
-        </div>
-
-        <div className="f-status-wrapper">
-          {backendOffline ? (
-            <span className="f-status f-status-offline" role="status">
-              <span className="f-dot">●</span> FORECAST ENGINE: BACKEND OFFLINE
-            </span>
-          ) : ready ? (
-            <span className="f-status f-status-ready" role="status">
-              <span className="f-dot">●</span> FORECAST ENGINE: READY
-            </span>
-          ) : (
-            <span className="f-status f-status-missing" role="status">
-              <span className="f-dot">●</span> FORECAST ENGINE: ARTIFACTS MISSING
-            </span>
-          )}
-        </div>
-      </div>
-
       <LiveAttackLab />
 
       {loading && <div className="f-empty">Loading forecast artifacts…</div>}

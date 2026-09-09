@@ -11,14 +11,16 @@ export default function JarvisChat({
   const [speechError, setSpeechError] = useState(null);
   const [voiceMuted, setVoiceMuted] = useState(false);
 
-  const messagesEndRef = useRef(null);
+  const streamRef = useRef(null);
   const recognitionRef = useRef(null);
   const textareaRef = useRef(null);
   const lastSpokenIdRef = useRef(null);
 
   // Auto-scroll to bottom of conversation
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    const stream = streamRef.current;
+    if (!stream) return;
+    stream.scrollTo({ top: stream.scrollHeight, behavior: "smooth" });
   }, [messages, isProcessing]);
 
   // Expose speaker for latest assistant message
@@ -164,7 +166,12 @@ export default function JarvisChat({
       </div>
 
       {/* CONVERSATION STREAM */}
-      <div className="console-stream" role="log" aria-live="polite">
+      <div
+        ref={streamRef}
+        className={`console-stream ${messages.length === 1 && !isProcessing ? "console-stream-empty" : ""}`}
+        role="log"
+        aria-live="polite"
+      >
         {messages.map((msg) => (
           <div
             key={msg.id}
@@ -192,7 +199,6 @@ export default function JarvisChat({
           </div>
         )}
 
-        <div ref={messagesEndRef} />
       </div>
 
       {/* SPEECH ERROR BANNER */}

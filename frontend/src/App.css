@@ -60,20 +60,32 @@ textarea {
    APP CONTAINER & BACKGROUND
    ========================================================= */
 
+/* =========================================================
+   APP CONTAINER & BACKGROUND
+   ========================================================= */
+
 .jarvis {
   position: relative;
   width: 100%;
-  min-height: 100vh;
-  height: auto;
-  padding: 8px 20px 24px;
-  overflow-x: hidden;
-  overflow-y: visible;
+  height: 100vh;
+  max-height: 100vh;
+  padding: 8px 18px 12px;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   background-image:
     linear-gradient(rgba(83, 227, 255, 0.028) 1px, transparent 1px),
     linear-gradient(90deg, rgba(83, 227, 255, 0.028) 1px, transparent 1px);
   background-size: 40px 40px;
+}
+
+/* Allow view containers (Forecast, History) that need scrolling to scroll inside jarvis */
+.jarvis:has(.forecast-view),
+.jarvis:has(.history-view) {
+  height: auto;
+  min-height: 100vh;
+  max-height: none;
+  overflow-y: auto;
 }
 
 .jarvis::before,
@@ -108,20 +120,17 @@ textarea {
 }
 
 /* =========================================================
-   HEADER (STICKY & ALWAYS VISIBLE)
+   HEADER (COMPACT & ALWAYS VISIBLE)
    ========================================================= */
 
 .header {
-  position: sticky;
-  top: 0;
-  z-index: 100;
-  min-height: 56px;
+  min-height: 48px;
   flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 14px;
-  padding: 8px 0;
+  margin-bottom: 8px;
+  padding: 4px 0 8px;
   background: rgba(2, 8, 16, 0.94);
   backdrop-filter: blur(16px);
   border-bottom: 1px solid var(--line, rgba(90, 205, 245, 0.16));
@@ -154,7 +163,7 @@ textarea {
 
 .header h1 {
   margin: 0;
-  font-size: 21px;
+  font-size: 20px;
   font-weight: 600;
   letter-spacing: 3px;
   color: var(--text-hi, #eefbff);
@@ -257,19 +266,19 @@ textarea {
 }
 
 /* =========================================================
-/* =========================================================
    MAIN OPERATIONS GRID (3-COLUMN COMMAND CENTER)
    ========================================================= */
 
 .main-grid {
   flex: 1;
   width: 100%;
-  min-height: auto;
+  height: calc(100vh - 72px);
+  min-height: 0;
   display: grid;
-  grid-template-columns: 410px minmax(420px, 1fr) 360px;
-  gap: 16px;
+  grid-template-columns: 380px minmax(400px, 1fr) 340px;
+  gap: 14px;
   align-items: stretch;
-  overflow: visible;
+  overflow: hidden;
 }
 
 /* 1. LEFT: RADAR HERO COLUMN */
@@ -277,17 +286,16 @@ textarea {
   display: flex;
   flex-direction: column;
   min-width: 0;
-  height: calc(100vh - 84px);
-  min-height: 600px;
-  position: sticky;
-  top: 76px;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .radar-section {
   height: 100%;
   display: flex;
   flex-direction: column;
-  padding-bottom: 8px;
+  padding-bottom: 6px;
 }
 
 .radar-head-title {
@@ -316,13 +324,13 @@ textarea {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 12px 10px;
-  min-height: 330px;
+  padding: 8px;
+  min-height: 0;
 }
 
 .radar-hud-azimuth {
   position: absolute;
-  inset: 12px;
+  inset: 8px;
   pointer-events: none;
 }
 
@@ -332,7 +340,6 @@ textarea {
   font-weight: 700;
   letter-spacing: 1.2px;
   color: rgba(83, 227, 255, 0.65);
-  font-family: var(--font-times);
 }
 
 .az-n { top: 2px; left: 50%; transform: translateX(-50%); }
@@ -340,11 +347,12 @@ textarea {
 .az-s { bottom: 2px; left: 50%; transform: translateX(-50%); }
 .az-w { left: 4px; top: 50%; transform: translateY(-50%); }
 
-/* TRUE 1:1 CIRCULAR RADAR SCOPE */
+/* TRUE 1:1 CIRCULAR RADAR SCOPE (ADAPTIVE SIZE) */
 .radar {
   position: relative;
-  width: 290px;
-  height: 290px;
+  width: min(260px, 34vh);
+  height: min(260px, 34vh);
+  aspect-ratio: 1;
   border-radius: 50%;
   display: grid;
   place-items: center;
@@ -375,30 +383,29 @@ textarea {
 }
 
 .radar .ring.r1 {
-  width: 85px;
-  height: 85px;
+  width: 32%;
+  height: 32%;
   border-color: rgba(83, 227, 255, 0.4);
 }
 
 .radar .ring.r2 {
-  width: 170px;
-  height: 170px;
+  width: 64%;
+  height: 64%;
   border-color: rgba(83, 227, 255, 0.28);
   border-style: dashed;
 }
 
 .radar .ring.r3 {
-  width: 245px;
-  height: 245px;
+  width: 96%;
+  height: 96%;
   border-color: rgba(83, 227, 255, 0.22);
 }
 
 .ring-label {
   margin-top: 2px;
-  font-size: 7.5px;
+  font-size: 7px;
   letter-spacing: 0.8px;
   color: rgba(83, 227, 255, 0.45);
-  font-family: var(--font-times);
   text-transform: uppercase;
 }
 
@@ -408,18 +415,18 @@ textarea {
   pointer-events: none;
 }
 
-.cross.x { width: 280px; height: 1px; }
-.cross.y { height: 280px; width: 1px; }
+.cross.x { width: 100%; height: 1px; }
+.cross.y { height: 100%; width: 1px; }
 
 .cross.diag-1 {
-  width: 280px;
+  width: 100%;
   height: 1px;
   transform: rotate(45deg);
   background: rgba(83, 227, 255, 0.1);
 }
 
 .cross.diag-2 {
-  width: 280px;
+  width: 100%;
   height: 1px;
   transform: rotate(-45deg);
   background: rgba(83, 227, 255, 0.1);
@@ -435,14 +442,14 @@ textarea {
 
 @keyframes sonarWave {
   0% { width: 30px; height: 30px; opacity: 0.9; }
-  75% { width: 270px; height: 270px; opacity: 0.2; }
-  100% { width: 285px; height: 285px; opacity: 0; }
+  75% { width: 90%; height: 90%; opacity: 0.2; }
+  100% { width: 98%; height: 98%; opacity: 0; }
 }
 
 .sweep {
   position: absolute;
-  width: 286px;
-  height: 286px;
+  width: 100%;
+  height: 100%;
   border-radius: 50%;
   background: conic-gradient(from 0deg, rgba(83, 227, 255, 0.55) 0deg, rgba(83, 227, 255, 0.2) 35deg, transparent 75deg);
   animation: radarSweep 3.6s linear infinite;
@@ -465,8 +472,8 @@ textarea {
 }
 
 .radar-core .core {
-  width: 34px;
-  height: 34px;
+  width: 30px;
+  height: 30px;
   display: grid;
   place-items: center;
   border-radius: 50%;
@@ -474,12 +481,12 @@ textarea {
   background: radial-gradient(circle, rgba(83, 227, 255, 0.4), rgba(4, 18, 30, 0.95));
   color: var(--cyan, #53e3ff);
   font-weight: 700;
-  font-size: 14px;
+  font-size: 13px;
   box-shadow: 0 0 16px rgba(83, 227, 255, 0.5);
 }
 
 .radar-core span {
-  font-size: 9px;
+  font-size: 8px;
   letter-spacing: 1.2px;
   font-weight: 600;
   color: var(--cyan, #53e3ff);
@@ -502,8 +509,8 @@ textarea {
 }
 
 .node-dot {
-  width: 10px;
-  height: 10px;
+  width: 9px;
+  height: 9px;
   border-radius: 50%;
   background: var(--green, #45e6a8);
   box-shadow: 0 0 10px var(--green, #45e6a8);
@@ -522,8 +529,8 @@ textarea {
 
 .node-ping {
   position: absolute;
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 20px;
   border-radius: 50%;
   border: 1.5px solid currentColor;
   color: var(--green, #45e6a8);
@@ -541,13 +548,13 @@ textarea {
 }
 
 .node-tag {
-  margin-top: 4px;
-  font-size: 9px;
+  margin-top: 3px;
+  font-size: 8.5px;
   font-weight: 600;
   letter-spacing: 0.5px;
   color: var(--text-hi, #eefbff);
   background: rgba(2, 12, 22, 0.88);
-  padding: 2px 6px;
+  padding: 1px 5px;
   border-radius: 4px;
   border: 1px solid rgba(83, 227, 255, 0.3);
   white-space: nowrap;
@@ -556,30 +563,31 @@ textarea {
 
 /* RADAR HUD FOOTER */
 .radar-hud-footer {
-  padding: 10px 14px 6px;
+  padding: 6px 10px 4px;
   border-top: 1px solid var(--line-faint, rgba(90, 205, 245, 0.08));
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
   background: rgba(2, 10, 18, 0.4);
+  flex-shrink: 0;
 }
 
 .radar-hud-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 8px;
+  gap: 6px;
 }
 
 .hud-metric {
-  padding: 8px 10px;
-  border-radius: 8px;
+  padding: 5px 8px;
+  border-radius: 6px;
   background: rgba(4, 18, 30, 0.7);
   border: 1px solid var(--line-faint, rgba(90, 205, 245, 0.08));
 }
 
 .hud-lbl {
   display: block;
-  font-size: 9px;
+  font-size: 8.5px;
   letter-spacing: 1px;
   color: var(--text-dim, #62839a);
   text-transform: uppercase;
@@ -587,9 +595,9 @@ textarea {
 
 .hud-val {
   display: block;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
-  margin-top: 2px;
+  margin-top: 1px;
   color: var(--text-hi, #eefbff);
 }
 
@@ -601,11 +609,11 @@ textarea {
 .hud-val.threat-nominal { color: var(--green, #45e6a8); }
 
 .radar-hud-sub {
-  font-size: 9px;
+  font-size: 8.5px;
   letter-spacing: 0.8px;
   color: var(--text-dim, #62839a);
   text-align: center;
-  padding-top: 2px;
+  padding-top: 1px;
 }
 
 /* 2. CENTER: JARVIS CHAT CONSOLE COLUMN */
@@ -613,22 +621,20 @@ textarea {
   display: flex;
   flex-direction: column;
   min-width: 0;
-  height: calc(100vh - 84px);
-  min-height: 600px;
-  position: sticky;
-  top: 76px;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
 }
 
 /* 3. RIGHT: TELEMETRY & SECURITY INTELLIGENCE COLUMN */
 .telemetry-column {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 10px;
   min-width: 0;
-  height: calc(100vh - 84px);
-  min-height: 600px;
-  position: sticky;
-  top: 76px;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .telemetry-column .devices {
@@ -636,12 +642,28 @@ textarea {
   display: flex;
   flex-direction: column;
   min-height: 0;
-  max-height: none;
+  max-height: 50%;
+  overflow: hidden;
 }
 
 .telemetry-column .devices .device-list {
   flex: 1;
-  max-height: none;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.telemetry-column .events-section {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  max-height: 50%;
+  overflow: hidden;
+}
+
+.telemetry-column .events-section .events-list {
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
 }
 
@@ -982,7 +1004,7 @@ textarea {
 /* RECENT SECURITY EVENTS */
 .events-section {
   flex: 1;
-  min-height: 140px;
+  min-height: 0;
   display: flex;
   flex-direction: column;
 }

@@ -1,1 +1,16 @@
-[]
+[
+  {
+    "id": "sess_1788935242382_d7dd2",
+    "deviceId": "Client-t3en",
+    "hostname": "Client-t3en",
+    "name": "Prakash",
+    "ip": "127.0.0.1",
+    "os": "Win32",
+    "firstSeen": "2026-09-09T06:27:22.382Z",
+    "lastSeen": "2026-09-09T06:27:22.382Z",
+    "connectedAt": "2026-09-09T06:27:22.382Z",
+    "disconnectedAt": null,
+    "status": "ONLINE",
+    "duration": "0s"
+  }
+]

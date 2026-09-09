@@ -3,7 +3,7 @@ import { io } from "socket.io-client";
 import ForecastDashboard from "./ForecastDashboard.jsx";
 import "./App.css";
 
-const socket = io("http://localhost:5000");
+const socket = io("/");
 
 export default function App() {
   const [devices, setDevices] = useState([]);
@@ -12,8 +12,18 @@ export default function App() {
   const [message, setMessage] = useState("");
   const [listening, setListening] = useState(false);
   const [forecastView, setForecastView] = useState(false);
+  const [deviceNameInput, setDeviceNameInput] = useState(
+    () => localStorage.getItem("deviceName") || ""
+  );
 
   const recognitionRef = useRef(null);
+  const registerRef = useRef(null);
+
+  const saveDeviceName = () => {
+    const value = deviceNameInput.trim();
+    localStorage.setItem("deviceName", value);
+    registerRef.current?.();
+  };
 
   useEffect(() => {
     socket.on("world_update", (world) => {
@@ -46,6 +56,43 @@ export default function App() {
     };
   }, []);
 
+  useEffect(() => {
+    let clientId = sessionStorage.getItem("clientId");
+
+    if (!clientId) {
+      clientId = "Client-" + Math.random().toString(36).slice(2, 6);
+      sessionStorage.setItem("clientId", clientId);
+    }
+
+    const register = async () => {
+      try {
+        await fetch("/device", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            hostname: clientId,
+            name: localStorage.getItem("deviceName") || "",
+            os: navigator.platform || "Web",
+            cpu: navigator.hardwareConcurrency || 0,
+            ram: navigator.deviceMemory || 0,
+            status: "online",
+          }),
+        });
+      } catch {
+        // backend unreachable — retry on next heartbeat
+      }
+    };
+
+    registerRef.current = register;
+
+    register();
+    const heartbeat = setInterval(register, 8000);
+
+    return () => clearInterval(heartbeat);
+  }, []);
+
   const speak = (text) => {
     if (!window.speechSynthesis) return;
 
@@ -65,7 +112,7 @@ export default function App() {
 
     try {
       const response = await fetch(
-        "http://localhost:5000/voice-command",
+        "/voice-command",
         {
           method: "POST",
           headers: {
@@ -183,14 +230,19 @@ export default function App() {
 
           <div>
             <h1>CYBERFORESIGHT</h1>
-            <p className="brand-sub">AI infiltration forecasting · <b>JARVIS</b> core</p>
+            <p className="brand-sub">AI Temporal World Model · <b>SIH-26153</b></p>
           </div>
         </div>
 
         <div className="header-right">
+          <div className="network-pill" title="Live Server Network">
+            <span className="dot"></span>
+            <span>LAN: 172.100.128.62</span>
+          </div>
+
           <div className="online" role="status">
             <i aria-hidden="true"></i>
-            System online
+            System Online
           </div>
 
           <div className="view-toggle" data-v={forecastView ? "forecast" : "live"} role="group" aria-label="View">
@@ -199,14 +251,14 @@ export default function App() {
               onClick={() => setForecastView(false)}
               aria-pressed={!forecastView}
             >
-              Live
+              🌐 Threat Radar
             </button>
             <button
               className={forecastView ? "active" : ""}
               onClick={() => setForecastView(true)}
               aria-pressed={forecastView}
             >
-              Forecast
+              🔮 Forecast Lab
             </button>
           </div>
         </div>
@@ -224,15 +276,32 @@ export default function App() {
         <section className="glass devices">
 
           <div className="section-head">
-            <span>CONNECTED DEVICES</span>
-            <b>{devices.length}</b>
+            <div className="head-left">
+              <span className="indicator-dot"></span>
+              <span>ACTIVE LAN NODES</span>
+            </div>
+            <b className="count-badge">{devices.length}</b>
+          </div>
+
+          <div className="name-this">
+            <input
+              value={deviceNameInput}
+              onChange={(e) => setDeviceNameInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") saveDeviceName();
+              }}
+              placeholder="Label this terminal (e.g., SOC-1)..."
+              aria-label="Name this device"
+            />
+            <button onClick={saveDeviceName}>Set</button>
           </div>
 
           <div className="device-list">
 
             {devices.length === 0 && (
               <div className="no-devices">
-                Waiting for devices...
+                <div className="radar-spinner"></div>
+                Scanning network for connected nodes...
               </div>
             )}
 
@@ -242,22 +311,21 @@ export default function App() {
               return (
                 <div className="device" key={device.hostname} data-level={threat}>
 
-                  <div className="device-circle">
-                    ●
+                  <div className="device-icon">
+                    {threat === "critical" ? "⚠️" : "💻"}
                   </div>
 
                   <div className="device-data">
-                    <strong>{device.hostname}</strong>
-                    <small>{device.ip}</small>
-                    <small>
-                      CPU {device.cpu ?? "--"}%
-                      &nbsp; RAM {device.ram ?? "--"}%
-                    </small>
+                    <div className="device-title-row">
+                      <strong>{device.name || device.hostname}</strong>
+                      <span className={`threat-pill ${threat}`}>{threat.toUpperCase()}</span>
+                    </div>
+                    <small className="device-ip">{device.ip}</small>
+                    <div className="device-specs">
+                      <span>⚡ {device.cpu ?? "--"} Cores</span>
+                      <span>🧠 {device.ram ?? "--"} GB RAM</span>
+                    </div>
                   </div>
-
-                  <span className={`threat ${threat}`}>
-                    {threat}
-                  </span>
 
                 </div>
               );
@@ -313,7 +381,7 @@ export default function App() {
                   )}
                 >
                   <div></div>
-                  <span>{device.hostname}</span>
+                  <span>{device.name || device.ip}</span>
                 </div>
               );
             })}

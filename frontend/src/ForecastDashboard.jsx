@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import "./Forecast.css";
+import LiveAttackLab from "./LiveAttackLab.jsx";
 
-const API = "http://localhost:5000/forecast";
+const API = "/forecast";
 
 const fmtDate = (v) => (v ? String(v).slice(0, 19).replace("T", " ") : "—");
 const num = (v) => {
@@ -366,6 +367,8 @@ export default function ForecastDashboard() {
         </div>
         {ready && <span className="f-ready">● LIVE ARTIFACTS</span>}
       </div>
+
+      <LiveAttackLab />
 
       {loading && <div className="f-empty">Loading forecast artifacts…</div>}
 

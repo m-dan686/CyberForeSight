@@ -114,6 +114,85 @@ function runJARVIS(worldState) {
 
 
 // ==========================================
+// DEVICE HISTORY PERSISTENCE (LOCAL-FIRST)
+// ==========================================
+
+const DATA_DIR = path.join(__dirname, "..", "data");
+const DEVICE_HISTORY_FILE = path.join(DATA_DIR, "device_history.json");
+
+function formatDuration(sec) {
+    if (sec < 60) return `${sec}s`;
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    if (m < 60) return `${m}m ${s}s`;
+    const h = Math.floor(m / 60);
+    const remM = m % 60;
+    return `${h}h ${remM}m ${s}s`;
+}
+
+let deviceHistory = [];
+
+function loadDeviceHistory() {
+    try {
+        if (!fs.existsSync(DATA_DIR)) {
+            fs.mkdirSync(DATA_DIR, { recursive: true });
+        }
+        if (fs.existsSync(DEVICE_HISTORY_FILE)) {
+            const data = JSON.parse(fs.readFileSync(DEVICE_HISTORY_FILE, "utf8"));
+            if (Array.isArray(data)) {
+                // On backend restart, ensure previous sessions marked "ONLINE" are closed (Rule 48)
+                const restartIso = new Date().toISOString();
+                deviceHistory = data.map((s) => {
+                    if (s.status === "ONLINE") {
+                        const disconnectedAt = s.lastSeen || restartIso;
+                        const durSec = Math.max(
+                            0,
+                            Math.floor((new Date(disconnectedAt) - new Date(s.connectedAt)) / 1000)
+                        );
+                        return {
+                            ...s,
+                            status: "OFFLINE",
+                            disconnectedAt,
+                            duration: formatDuration(durSec)
+                        };
+                    }
+                    return s;
+                });
+                saveDeviceHistory();
+                return;
+            }
+        }
+    } catch (err) {
+        console.error("Error loading device_history.json:", err.message);
+    }
+    deviceHistory = [];
+}
+
+function saveDeviceHistory() {
+    try {
+        if (!fs.existsSync(DATA_DIR)) {
+            fs.mkdirSync(DATA_DIR, { recursive: true });
+        }
+        fs.writeFileSync(DEVICE_HISTORY_FILE, JSON.stringify(deviceHistory, null, 2), "utf8");
+    } catch (err) {
+        console.error("Error saving device_history.json:", err.message);
+    }
+}
+
+function getDeviceHistorySummary() {
+    const totalDevices = new Set(deviceHistory.map((s) => s.hostname)).size;
+    const activeDevices = Object.keys(worldModel.devices).length;
+    return {
+        totalDevices,
+        activeDevices,
+        totalSessions: deviceHistory.length,
+        sessions: deviceHistory
+    };
+}
+
+loadDeviceHistory();
+
+// ==========================================
 // CYBERFORESIGHT FORECAST ARTIFACTS
 // ==========================================
 
@@ -144,6 +223,55 @@ function csvToRows(name) {
     });
 }
 
+function detectModelType(forecast) {
+    // 1. Existing forecast artifact metadata (forecast_info.json)
+    if (forecast.info && forecast.info.model_type) {
+        const m = String(forecast.info.model_type).trim();
+        if (m.toLowerCase().includes("transformer")) return "Temporal Transformer";
+        if (m.toLowerCase().includes("lstm")) return "LSTM fallback";
+        return m;
+    }
+
+    // 2. Benchmark metrics artifact (benchmark_metrics.json)
+    if (forecast.benchmarkMetrics) {
+        const keys = Object.keys(forecast.benchmarkMetrics);
+        if (keys.some((k) => k.toLowerCase().includes("transformer"))) {
+            return "Temporal Transformer";
+        }
+        if (keys.some((k) => k.toLowerCase().includes("lstm"))) {
+            return "LSTM fallback";
+        }
+    }
+
+    // 3. Training metrics artifact
+    const trainMetrics = readJsonIfExists("train_metrics.json");
+    if (trainMetrics && trainMetrics.model_type) {
+        const m = String(trainMetrics.model_type).trim();
+        if (m.toLowerCase().includes("transformer")) return "Temporal Transformer";
+        if (m.toLowerCase().includes("lstm")) return "LSTM fallback";
+        return m;
+    }
+
+    // 4. Validated fallback: configs/world_model.yaml (parsed via regex, zero new dependencies)
+    try {
+        const configPath = path.join(__dirname, "..", "configs", "world_model.yaml");
+        if (fs.existsSync(configPath)) {
+            const raw = fs.readFileSync(configPath, "utf8");
+            const match = raw.match(/^\s*type:\s*["']?([^"'\r\n]+)["']?/m);
+            if (match && match[1]) {
+                const val = match[1].trim().toLowerCase();
+                if (val.includes("transformer")) return "Temporal Transformer";
+                if (val.includes("lstm")) return "LSTM fallback";
+                return match[1].trim();
+            }
+        }
+    } catch {
+        // ignore
+    }
+
+    return "MODEL METADATA UNAVAILABLE";
+}
+
 app.get(
     "/forecast",
     (req, res) => {
@@ -164,9 +292,12 @@ app.get(
             forecast.rollout
         );
 
+        const modelType = detectModelType(forecast);
+
         res.json({
             success: true,
             ready,
+            modelType,
             demoCommand:
                 ".venv\\Scripts\\python run.py --stage features && " +
                 "run.py --stage train && run.py --stage forecast && " +
@@ -205,6 +336,8 @@ app.post("/device", (req, res) => {
         });
     }
 
+    const nowIso = new Date().toISOString();
+
     const updatedDevice = {
 
         hostname: device.hostname,
@@ -217,10 +350,9 @@ app.post("/device", (req, res) => {
 
         ram: device.ram || 0,
 
-        status: device.status || "UNKNOWN",
+        status: device.status || "ONLINE",
 
-        lastSeen:
-            new Date().toISOString()
+        lastSeen: nowIso
     };
 
     worldModel.devices[
@@ -228,6 +360,47 @@ app.post("/device", (req, res) => {
     ] = updatedDevice;
 
     updateWorldTimestamp();
+
+    // Session tracking (Rules 15, 16, 17: Heartbeat != new session)
+    let activeSession = deviceHistory.find(
+        (s) => s.hostname === device.hostname && s.status === "ONLINE"
+    );
+
+    if (!activeSession) {
+        // Device connects or reconnects: create a new session
+        const sessId = "sess_" + Date.now() + "_" + Math.random().toString(36).substring(2, 7);
+        activeSession = {
+            id: sessId,
+            deviceId: device.hostname,
+            hostname: device.hostname,
+            ip: device.ip || "UNKNOWN",
+            os: device.os || "UNKNOWN",
+            firstSeen: nowIso,
+            lastSeen: nowIso,
+            connectedAt: nowIso,
+            disconnectedAt: null,
+            status: "ONLINE",
+            duration: "0s"
+        };
+        deviceHistory.unshift(activeSession);
+        saveDeviceHistory();
+
+        io.emit("device_history_update", {
+            action: "connected",
+            session: activeSession,
+            history: getDeviceHistorySummary()
+        });
+    } else {
+        // Existing active session heartbeat: update lastSeen and duration without duplicate row
+        activeSession.lastSeen = nowIso;
+        if (device.ip && device.ip !== "UNKNOWN") activeSession.ip = device.ip;
+        if (device.os && device.os !== "UNKNOWN") activeSession.os = device.os;
+        const durSec = Math.max(
+            0,
+            Math.floor((new Date(nowIso) - new Date(activeSession.connectedAt)) / 1000)
+        );
+        activeSession.duration = formatDuration(durSec);
+    }
 
     console.log(
         "DEVICE:",
@@ -468,6 +641,22 @@ app.get(
 
 
 // ==========================================
+// DEVICE HISTORY
+// ==========================================
+
+app.get(
+    "/device-history",
+    (req, res) => {
+
+        res.json({
+            success: true,
+            ...getDeviceHistorySummary()
+        });
+    }
+);
+
+
+// ==========================================
 // SOCKET.IO
 // ==========================================
 
@@ -485,6 +674,14 @@ io.on(
             worldModel
         );
 
+        socket.emit(
+            "device_history_update",
+            {
+                action: "init",
+                history: getDeviceHistorySummary()
+            }
+        );
+
         socket.on(
             "disconnect",
             () => {
@@ -497,7 +694,8 @@ io.on(
         );
     }
 );
-// Remove devices that have not sent a heartbeat for 15 seconds
+
+// Remove devices that have not sent a heartbeat for 15 seconds (Rules 15, 49)
 setInterval(() => {
     const now = Date.now();
     let changed = false;
@@ -509,6 +707,22 @@ setInterval(() => {
 
         if (now - lastSeen > 15000) {
             console.log(`Device offline: ${hostname}`);
+            const disconnectIso = new Date().toISOString();
+
+            // Find and close active session
+            const activeSession = deviceHistory.find(
+                (s) => s.hostname === hostname && s.status === "ONLINE"
+            );
+            if (activeSession) {
+                activeSession.status = "OFFLINE";
+                activeSession.disconnectedAt = disconnectIso;
+                activeSession.lastSeen = worldModel.devices[hostname].lastSeen || disconnectIso;
+                const durSec = Math.max(
+                    0,
+                    Math.floor((new Date(disconnectIso) - new Date(activeSession.connectedAt)) / 1000)
+                );
+                activeSession.duration = formatDuration(durSec);
+            }
 
             delete worldModel.devices[hostname];
             changed = true;
@@ -516,7 +730,12 @@ setInterval(() => {
     }
 
     if (changed) {
+        saveDeviceHistory();
         io.emit("world_update", worldModel);
+        io.emit("device_history_update", {
+            action: "disconnected",
+            history: getDeviceHistorySummary()
+        });
     }
 }, 5000);
 

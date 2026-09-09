@@ -4,6 +4,39 @@ import LiveAttackLab from "./LiveAttackLab.jsx";
 
 const API = "/forecast";
 
+const PIPELINE_COMMANDS = [
+  {
+    step: "01",
+    title: "FEATURE EXTRACTION",
+    desc: "Extract flow and packet features into 60s temporal windows S(t)",
+    cmd: ".venv\\Scripts\\python run.py --stage features",
+  },
+  {
+    step: "02",
+    title: "WORLD MODEL TRAINING",
+    desc: "Train sequence world model to learn P(S_t+1 | S_t) state transitions",
+    cmd: ".venv\\Scripts\\python run.py --stage train",
+  },
+  {
+    step: "03",
+    title: "FORECAST GENERATION",
+    desc: "Execute K-step autoregressive rollout and calculate infiltration timeline",
+    cmd: ".venv\\Scripts\\python run.py --stage forecast",
+  },
+  {
+    step: "04",
+    title: "EXPLAINABILITY ATTRIBUTION",
+    desc: "Generate SHAP feature drivers and temporal attention time-step weights",
+    cmd: ".venv\\Scripts\\python run.py --stage explain",
+  },
+  {
+    step: "05",
+    title: "BENCHMARK EVALUATION",
+    desc: "Perform out-of-sample comparison against logistic regression baseline",
+    cmd: ".venv\\Scripts\\python run.py --stage benchmark",
+  },
+];
+
 const fmtDate = (v) => (v ? String(v).slice(0, 19).replace("T", " ") : "—");
 const num = (v) => {
   const n = Number(v);
@@ -15,6 +48,40 @@ function Kpi({ label, value, accent }) {
     <div className={`f-kpi ${accent ? `k-${accent}` : ""}`}>
       <span className="f-kpi-label">{label}</span>
       <strong className="f-kpi-value">{value}</strong>
+    </div>
+  );
+}
+
+function CommandCard({ item }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(item.cmd).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2200);
+    });
+  };
+
+  return (
+    <div className="f-cmd-card">
+      <div className="f-cmd-header">
+        <div className="f-cmd-title-group">
+          <span className="f-cmd-step">{item.step}</span>
+          <span className="f-cmd-title">{item.title}</span>
+        </div>
+        <button
+          className={`f-cmd-copy-btn ${copied ? "copied" : ""}`}
+          onClick={handleCopy}
+          type="button"
+          aria-label={`Copy command for ${item.title}`}
+        >
+          {copied ? "✓ Copied" : "Copy Command"}
+        </button>
+      </div>
+      <p className="f-cmd-desc">{item.desc}</p>
+      <div className="f-cmd-code-row">
+        <code>{item.cmd}</code>
+      </div>
     </div>
   );
 }
@@ -94,6 +161,7 @@ function RolloutChart({ rows, threshold }) {
   const H = 150;
   const PAD = { l: 46, r: 14, t: 14, b: 30 };
   const k = rows.length;
+  if (k === 0) return <div className="f-empty">No rollout steps available</div>;
   const slot = (W - PAD.l - PAD.r) / k;
   const maxProb = Math.max(1, ...rows.map((r) => num(r.attack_probability)));
 
@@ -116,7 +184,7 @@ function RolloutChart({ rows, threshold }) {
               {num(r.attack_probability).toFixed(2)}
             </text>
             <text x={PAD.l + i * slot + slot / 2} y={H - 10} textAnchor="middle" className="f-axis">
-              +{num(r.minutes_ahead)}
+              +{num(r.minutes_ahead)}m
             </text>
           </g>
         );
@@ -231,7 +299,7 @@ function BenchmarkPanel({ metrics, compare }) {
   const cellsOf = (label, blk, auc) => [
     label,
     blk.threshold,
-    blk.accuracy,
+    blk.accuracy !== undefined ? blk.accuracy : "—",
     blk.precision,
     blk.recall,
     blk.f1,
@@ -300,7 +368,7 @@ function BenchmarkPanel({ metrics, compare }) {
   );
 }
 
-function StagePanel({ info, rollout }) {
+function StagePanel({ info }) {
   const plan = info && info.stage_plan;
   if (!plan) return null;
   const steps = plan.steps || [];
@@ -336,69 +404,141 @@ function StagePanel({ info, rollout }) {
 }
 
 export default function ForecastDashboard() {
-  const [state, setState] = useState({ loading: true, ready: false, forecast: null });
+  const [state, setState] = useState({
+    loading: true,
+    ready: false,
+    backendOffline: false,
+    modelType: "MODEL METADATA UNAVAILABLE",
+    forecast: null,
+  });
 
   useEffect(() => {
     let cancelled = false;
     fetch(API)
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error("Network response was not ok");
+        return r.json();
+      })
       .then((data) => {
-        if (!cancelled) setState({ loading: false, ready: data.ready, forecast: data.forecast });
+        if (!cancelled) {
+          setState({
+            loading: false,
+            ready: Boolean(data.ready),
+            backendOffline: false,
+            modelType: data.modelType || "MODEL METADATA UNAVAILABLE",
+            forecast: data.forecast || null,
+          });
+        }
       })
       .catch(() => {
-        if (!cancelled) setState({ loading: false, ready: false, forecast: null });
+        if (!cancelled) {
+          setState({
+            loading: false,
+            ready: false,
+            backendOffline: true,
+            modelType: "MODEL METADATA UNAVAILABLE",
+            forecast: null,
+          });
+        }
       });
     return () => {
       cancelled = true;
     };
   }, []);
 
-  const { loading, ready, forecast } = state;
-  const info = ready ? forecast.info : null;
-  const timeline = ready ? forecast.timeline : [];
-  const rollout = ready ? forecast.rollout : [];
+  const { loading, ready, backendOffline, modelType, forecast } = state;
+  const info = ready && forecast ? forecast.info : null;
+  const timeline = ready && forecast ? forecast.timeline || [] : [];
+  const rollout = ready && forecast ? forecast.rollout || [] : [];
 
   return (
     <div className="forecast-view">
       <div className="f-head">
         <div>
-          <h2>CyberForeSight</h2>
-          <p>AI-based network infiltration forecasting · CIC-IDS-2018</p>
+          <h2>CYBERFORESIGHT</h2>
+          <p>AI-based network infiltration forecasting · CIC-IDS2018 benchmark</p>
         </div>
-        {ready && <span className="f-ready">● LIVE ARTIFACTS</span>}
+
+        <div className="f-status-wrapper">
+          {backendOffline ? (
+            <span className="f-status f-status-offline" role="status">
+              <span className="f-dot">●</span> FORECAST ENGINE: BACKEND OFFLINE
+            </span>
+          ) : ready ? (
+            <span className="f-status f-status-ready" role="status">
+              <span className="f-dot">●</span> FORECAST ENGINE: READY
+            </span>
+          ) : (
+            <span className="f-status f-status-missing" role="status">
+              <span className="f-dot">●</span> FORECAST ENGINE: ARTIFACTS MISSING
+            </span>
+          )}
+        </div>
       </div>
 
       <LiveAttackLab />
 
       {loading && <div className="f-empty">Loading forecast artifacts…</div>}
 
-      {!loading && !ready && (
+      {backendOffline && !loading && (
         <div className="f-card f-error">
-          <h3>Pipeline artifacts not found</h3>
+          <h3>Backend Service Unreachable</h3>
           <p>
-            The forecast dashboard reads the model outputs in <code>models/</code>. Generate them from the
-            project root, then refresh this page:
+            The forecast interface could not establish a connection to <code>http://localhost:5000/forecast</code>.
+            Ensure the Express backend is running:
           </p>
-          <pre className="f-cmd">
-            .venv\Scripts\python run.py --stage features
-            .venv\Scripts\python run.py --stage train
-            .venv\Scripts\python run.py --stage forecast
-            .venv\Scripts\python run.py --stage explain
-            .venv\Scripts\python run.py --stage benchmark
-          </pre>
+          <div className="f-cmd-card" style={{ marginTop: "14px" }}>
+            <div className="f-cmd-header">
+              <span className="f-cmd-title">START BACKEND SERVER</span>
+            </div>
+            <div className="f-cmd-code-row">
+              <code>node backend/server.js</code>
+            </div>
+          </div>
         </div>
       )}
 
-      {ready && (
+      {!loading && !ready && !backendOffline && (
+        <div className="f-card f-error">
+          <div className="f-card-head">
+            <h3>Pipeline Artifacts Not Found</h3>
+            <span className="f-badge">Engine Status: Standby</span>
+          </div>
+          <p className="f-sub" style={{ marginBottom: "18px" }}>
+            The forecast dashboard consumes real generated model outputs in <code>models/</code>. Run the
+            pipeline stages below in sequence to generate the temporal state windows, world model checkpoints,
+            and explainability artifacts:
+          </p>
+
+          <div className="f-cmd-grid">
+            {PIPELINE_COMMANDS.map((item) => (
+              <CommandCard key={item.step} item={item} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {ready && info && (
         <>
           <div className="f-kpis">
+            <Kpi label="World model architecture" value={modelType} accent="cyan" />
             <Kpi label="First attack window" value={fmtDate(info.first_attack_ts)} />
-            <Kpi label="Earliest pre-attack flag" value={info.earliest_pre_flag_idx === -1 ? "none" : `+${info.lead_minutes} min before`} accent="warn" />
-            <Kpi label="Infiltration lead time" value={info.lead_minutes >= 0 ? `${info.lead_minutes} min` : "—"} accent="attack" />
+            <Kpi
+              label="Earliest pre-attack flag"
+              value={info.earliest_pre_flag_idx === -1 ? "none" : `+${info.lead_minutes} min before`}
+              accent="warn"
+            />
+            <Kpi
+              label="Infiltration lead time"
+              value={info.lead_minutes >= 0 ? `${info.lead_minutes} min` : "—"}
+              accent="attack"
+            />
             <Kpi label="Pre-flag windows" value={info.pre_flag_count} />
             <Kpi label="Threat threshold" value={info.threshold} />
             <Kpi label="Rollout horizon" value={`${info.k_steps} min`} />
-            {info.stage_plan && <Kpi label="Dominant ATT&CK stage" value={info.stage_plan.dominant_stage} accent="attack" />}
+            {info.stage_plan && (
+              <Kpi label="Dominant ATT&CK stage" value={info.stage_plan.dominant_stage} accent="attack" />
+            )}
           </div>
 
           <div className="f-card">
@@ -417,15 +557,23 @@ export default function ForecastDashboard() {
               </div>
               <RolloutChart rows={rollout} threshold={num(info.threshold)} />
             </div>
+
             {info.seq_len && (
               <div className="f-card">
                 <div className="f-card-head">
-                  <h3>Scenario</h3>
+                  <h3>Scenario Analysis</h3>
                 </div>
                 <ul className="f-list">
-                  <li>Windows of <b>{info.seq_len}</b> consecutive network states feed the LSTM.</li>
-                  <li>The model forecasts next-window attack probability; alerting starts at <b>{num(info.threshold) * 100}%</b>.</li>
-                  <li>On this file the model flagged infiltration <b>{info.lead_minutes} minutes</b> before ground truth.</li>
+                  <li>
+                    Windows of <b>{info.seq_len}</b> consecutive network states feed the <b>{modelType}</b>.
+                  </li>
+                  <li>
+                    The model forecasts next-window attack probability; alerting starts at{" "}
+                    <b>{num(info.threshold) * 100}%</b>.
+                  </li>
+                  <li>
+                    On this file the model flagged infiltration <b>{info.lead_minutes} minutes</b> before ground truth.
+                  </li>
                 </ul>
               </div>
             )}
@@ -433,7 +581,7 @@ export default function ForecastDashboard() {
 
           <AttentionPanel attention={forecast.attention} />
           <ShapPanel shap={forecast.shap} />
-          <StagePanel info={info} rollout={rollout} />
+          <StagePanel info={info} />
           <BenchmarkPanel metrics={forecast.benchmarkMetrics} compare={forecast.benchmarkCompare} />
         </>
       )}

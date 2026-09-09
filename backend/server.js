@@ -115,6 +115,85 @@ function runJARVIS(worldState) {
 
 
 // ==========================================
+// DEVICE HISTORY PERSISTENCE (LOCAL-FIRST)
+// ==========================================
+
+const DATA_DIR = path.join(__dirname, "..", "data");
+const DEVICE_HISTORY_FILE = path.join(DATA_DIR, "device_history.json");
+
+function formatDuration(sec) {
+    if (sec < 60) return `${sec}s`;
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    if (m < 60) return `${m}m ${s}s`;
+    const h = Math.floor(m / 60);
+    const remM = m % 60;
+    return `${h}h ${remM}m ${s}s`;
+}
+
+let deviceHistory = [];
+
+function loadDeviceHistory() {
+    try {
+        if (!fs.existsSync(DATA_DIR)) {
+            fs.mkdirSync(DATA_DIR, { recursive: true });
+        }
+        if (fs.existsSync(DEVICE_HISTORY_FILE)) {
+            const data = JSON.parse(fs.readFileSync(DEVICE_HISTORY_FILE, "utf8"));
+            if (Array.isArray(data)) {
+                const restartIso = new Date().toISOString();
+                deviceHistory = data.map((s) => {
+                    if (s.status === "ONLINE") {
+                        const disconnectedAt = s.lastSeen || restartIso;
+                        const durSec = Math.max(
+                            0,
+                            Math.floor((new Date(disconnectedAt) - new Date(s.connectedAt)) / 1000)
+                        );
+                        return {
+                            ...s,
+                            status: "OFFLINE",
+                            disconnectedAt,
+                            duration: formatDuration(durSec)
+                        };
+                    }
+                    return s;
+                });
+                saveDeviceHistory();
+                return;
+            }
+        }
+    } catch (err) {
+        console.error("Error loading device_history.json:", err.message);
+    }
+    deviceHistory = [];
+}
+
+function saveDeviceHistory() {
+    try {
+        if (!fs.existsSync(DATA_DIR)) {
+            fs.mkdirSync(DATA_DIR, { recursive: true });
+        }
+        fs.writeFileSync(DEVICE_HISTORY_FILE, JSON.stringify(deviceHistory, null, 2), "utf8");
+    } catch (err) {
+        console.error("Error saving device_history.json:", err.message);
+    }
+}
+
+function getDeviceHistorySummary() {
+    const totalDevices = new Set(deviceHistory.map((s) => s.hostname)).size;
+    const activeDevices = Object.keys(worldModel.devices).length;
+    return {
+        totalDevices,
+        activeDevices,
+        totalSessions: deviceHistory.length,
+        sessions: deviceHistory
+    };
+}
+
+loadDeviceHistory();
+
+
+// ==========================================
 // LIVE ATTACK LAB (demo/live_sim.py bridge)
 // ==========================================
 
@@ -312,6 +391,32 @@ function csvToRows(name) {
     });
 }
 
+function detectModelType(forecast) {
+    if (forecast.info && forecast.info.model_type) {
+        const m = String(forecast.info.model_type).trim();
+        if (m.toLowerCase().includes("transformer")) return "Temporal Transformer";
+        if (m.toLowerCase().includes("lstm")) return "LSTM fallback";
+        return m;
+    }
+    if (forecast.benchmarkMetrics) {
+        const keys = Object.keys(forecast.benchmarkMetrics);
+        if (keys.some((k) => k.toLowerCase().includes("transformer"))) {
+            return "Temporal Transformer";
+        }
+        if (keys.some((k) => k.toLowerCase().includes("lstm"))) {
+            return "LSTM fallback";
+        }
+    }
+    const trainMetrics = readJsonIfExists("train_metrics.json");
+    if (trainMetrics && trainMetrics.model_type) {
+        const m = String(trainMetrics.model_type).trim();
+        if (m.toLowerCase().includes("transformer")) return "Temporal Transformer";
+        if (m.toLowerCase().includes("lstm")) return "LSTM fallback";
+        return m;
+    }
+    return "Temporal Transformer";
+}
+
 app.get(
     "/forecast",
     (req, res) => {
@@ -332,9 +437,12 @@ app.get(
             forecast.rollout
         );
 
+        const modelType = detectModelType(forecast);
+
         res.json({
             success: true,
             ready,
+            modelType,
             demoCommand:
                 ".venv\\Scripts\\python run.py --stage features && " +
                 "run.py --stage train && run.py --stage forecast && " +
@@ -349,32 +457,36 @@ app.get(
 // HOME
 // ==========================================
 
-app.get("/", (req, res) => {
+const distDir = path.join(
+    __dirname,
+    "..",
+    "frontend",
+    "dist"
+);
 
-    const indexPath = path.join(
-        __dirname,
-        "..",
-        "frontend",
-        "dist",
-        "index.html"
-    );
+if (fs.existsSync(
+    path.join(distDir, "index.html")
+)) {
+    app.use(express.static(distDir));
 
-    if (fs.existsSync(indexPath)) {
-        return res.sendFile(indexPath);
-    }
-
-    res.json({
-        status: "JARVIS backend online"
+    app.get("/", (req, res) => {
+        res.sendFile(
+            path.join(distDir, "index.html")
+        );
     });
-});
+} else {
+    app.get("/", (req, res) => {
+        res.json({
+            status: "JARVIS backend online"
+        });
+    });
+}
 
 
 // ==========================================
 // DEVICE
 // ==========================================
 
-// Best-effort NETBIOS name resolution for Windows clients (cached per IP).
-// Phones and Macs don't answer NETBIOS -> resolveNetBiosName returns null.
 const netBiosCache = {};
 
 function resolveNetBiosName(ip) {
@@ -394,13 +506,11 @@ function resolveNetBiosName(ip) {
             netBiosCache[ip] = match[1].replace(/\.+$/, "");
         }
     } catch (e) {
-        // no NETBIOS answer — keep cache[ip] = null
+        // no NETBIOS answer
     }
     return netBiosCache[ip];
 }
 
-// Keep display names unique among currently connected devices.
-// Empty nameless devices are not deduplicated (they show as their IP).
 function uniqueDeviceName(base, devices, currentHostname) {
     if (!(base || "").trim()) return "";
     const used = {};
@@ -419,7 +529,6 @@ app.post("/device", (req, res) => {
     const device = req.body;
 
     if (!device.hostname) {
-
         return res.status(400).json({
             success: false,
             error: "hostname is required"
@@ -432,63 +541,78 @@ app.post("/device", (req, res) => {
         "UNKNOWN"
     );
 
-    // Real device name only: user-set > NETBIOS > host computer name
-    // (for the backend machine itself, e.g. loopback). Never invented
-    // labels or generic device types.
     const netName = resolveNetBiosName(ip);
-
     let realName = (device.name || "").trim() || netName || null;
 
     if (!realName && (ip === "127.0.0.1" || ip === "::1")) {
         realName = osModule.hostname();
     }
 
+    const nowIso = new Date().toISOString();
+
     const updatedDevice = {
-
         hostname: device.hostname,
-
         name: uniqueDeviceName(
             realName || "",
             worldModel.devices,
             device.hostname
         ),
-
         ip: ip,
-
         os: device.os || "UNKNOWN",
-
         cpu: device.cpu || 0,
-
         ram: device.ram || 0,
-
-        status: device.status || "UNKNOWN",
-
-        lastSeen:
-            new Date().toISOString()
+        status: device.status || "ONLINE",
+        lastSeen: nowIso
     };
 
-    worldModel.devices[
-        device.hostname
-    ] = updatedDevice;
-
+    worldModel.devices[device.hostname] = updatedDevice;
     updateWorldTimestamp();
 
-    console.log(
-        "DEVICE:",
-        (updatedDevice.name || updatedDevice.ip),
-        "@",
-        updatedDevice.ip
+    // Session tracking
+    let activeSession = deviceHistory.find(
+        (s) => s.hostname === device.hostname && s.status === "ONLINE"
     );
 
-    io.emit(
-        "device_update",
-        updatedDevice
-    );
+    if (!activeSession) {
+        const sessId = "sess_" + Date.now() + "_" + Math.random().toString(36).substring(2, 7);
+        activeSession = {
+            id: sessId,
+            deviceId: device.hostname,
+            hostname: device.hostname,
+            name: updatedDevice.name || device.hostname,
+            ip: ip,
+            os: device.os || "UNKNOWN",
+            firstSeen: nowIso,
+            lastSeen: nowIso,
+            connectedAt: nowIso,
+            disconnectedAt: null,
+            status: "ONLINE",
+            duration: "0s"
+        };
+        deviceHistory.unshift(activeSession);
+        saveDeviceHistory();
 
-    io.emit(
-        "world_update",
-        worldModel
-    );
+        io.emit("device_history_update", {
+            action: "connected",
+            session: activeSession,
+            history: getDeviceHistorySummary()
+        });
+    } else {
+        activeSession.lastSeen = nowIso;
+        if (ip && ip !== "UNKNOWN") activeSession.ip = ip;
+        if (device.os && device.os !== "UNKNOWN") activeSession.os = device.os;
+        if (updatedDevice.name) activeSession.name = updatedDevice.name;
+        const durSec = Math.max(
+            0,
+            Math.floor((new Date(nowIso) - new Date(activeSession.connectedAt)) / 1000)
+        );
+        activeSession.duration = formatDuration(durSec);
+    }
+
+    console.log("DEVICE:", (updatedDevice.name || updatedDevice.hostname), "@", ip);
+
+    io.emit("device_update", updatedDevice);
+    io.emit("world_update", worldModel);
 
     res.json({
         success: true,
@@ -506,105 +630,44 @@ app.post(
     (req, res) => {
 
         const event = {
-
             ...req.body,
-
-            timestamp:
-                new Date().toISOString()
+            timestamp: new Date().toISOString()
         };
 
-        worldModel.recentEvents.push(
-            event
-        );
+        worldModel.recentEvents.push(event);
 
-        if (
-            worldModel.recentEvents.length > 100
-        ) {
-
-            worldModel.recentEvents =
-                worldModel.recentEvents.slice(-100);
+        if (worldModel.recentEvents.length > 100) {
+            worldModel.recentEvents = worldModel.recentEvents.slice(-100);
         }
 
         updateWorldTimestamp();
 
-        console.log(
-            "SECURITY EVENT:",
-            event
-        );
+        console.log("SECURITY EVENT:", event);
 
-        io.emit(
-            "security_event",
-            event
-        );
+        io.emit("security_event", event);
+        io.emit("world_update", worldModel);
 
-        io.emit(
-            "world_update",
-            worldModel
-        );
-
-
-        // Respond immediately
         res.json({
-
             success: true,
-
             event: event,
-
-            message:
-                "Security event received. JARVIS analysis started."
-
+            message: "Security event received. JARVIS analysis started."
         });
 
-
-        // Run JARVIS in background
-
-        const snapshot =
-            JSON.parse(
-                JSON.stringify(
-                    worldModel
-                )
-            );
-
-        console.log(
-            "JARVIS: Analyzing security event..."
-        );
-
+        const snapshot = JSON.parse(JSON.stringify(worldModel));
         runJARVIS(snapshot)
-
             .then((result) => {
-
-                console.log(
-                    "JARVIS: Analysis complete"
-                );
-
-                io.emit(
-                    "jarvis_intelligence",
-                    result
-                );
-
+                io.emit("jarvis_intelligence", result);
             })
-
             .catch((error) => {
-
-                console.error(
-                    "JARVIS ERROR:",
-                    error.message
-                );
-
-                io.emit(
-                    "jarvis_error",
-                    {
-                        error:
-                            error.message
-                    }
-                );
+                console.error("JARVIS ERROR:", error.message);
+                io.emit("jarvis_error", { error: error.message });
             });
     }
 );
 
 
 // ==========================================
-// VOICE COMMAND
+// VOICE / TEXT COMMAND
 // ==========================================
 
 app.post(
@@ -614,67 +677,31 @@ app.post(
         const { command } = req.body;
 
         if (!command) {
-
             return res.status(400).json({
                 success: false,
-                message:
-                    "Voice command is required"
+                message: "Voice command is required"
             });
         }
 
-        console.log(
-            "VOICE COMMAND:",
-            command
-        );
+        console.log("VOICE COMMAND:", command);
 
         try {
+            const snapshot = JSON.parse(JSON.stringify(worldModel));
+            snapshot.voice_command = command;
 
-            const snapshot =
-                JSON.parse(
-                    JSON.stringify(
-                        worldModel
-                    )
-                );
-
-            snapshot.voice_command =
-                command;
-
-            const result =
-                await runJARVIS(
-                    snapshot
-                );
-
-            console.log(
-                "JARVIS: Voice response complete"
-            );
+            const result = await runJARVIS(snapshot);
 
             res.json({
-
                 success: true,
-
                 command: command,
-
                 result: result
-
             });
-
         } catch (error) {
-
-            console.error(
-                "Voice command error:",
-                error.message
-            );
-
+            console.error("Voice command error:", error.message);
             res.status(500).json({
-
                 success: false,
-
-                message:
-                    "JARVIS voice processing failed",
-
-                error:
-                    error.message
-
+                message: "JARVIS voice processing failed",
+                error: error.message
             });
         }
     }
@@ -682,68 +709,42 @@ app.post(
 
 
 // ==========================================
-// DEVICES
+// DEVICES & WORLD STATE
 // ==========================================
 
-app.get(
-    "/devices",
-    (req, res) => {
+app.get("/devices", (req, res) => {
+    res.json(Object.values(worldModel.devices));
+});
 
-        res.json(
-            Object.values(
-                worldModel.devices
-            )
-        );
-    }
-);
+app.get("/world-state", (req, res) => {
+    res.json(worldModel);
+});
 
-
-// ==========================================
-// WORLD STATE
-// ==========================================
-
-app.get(
-    "/world-state",
-    (req, res) => {
-
-        res.json(
-            worldModel
-        );
-    }
-);
+app.get("/device-history", (req, res) => {
+    res.json({
+        success: true,
+        ...getDeviceHistorySummary()
+    });
+});
 
 
 // ==========================================
 // SOCKET.IO
 // ==========================================
 
-io.on(
-    "connection",
-    (socket) => {
+io.on("connection", (socket) => {
+    console.log("Client connected:", socket.id);
+    socket.emit("world_update", worldModel);
+    socket.emit("device_history_update", {
+        action: "init",
+        history: getDeviceHistorySummary()
+    });
 
-        console.log(
-            "Client connected:",
-            socket.id
-        );
+    socket.on("disconnect", () => {
+        console.log("Client disconnected:", socket.id);
+    });
+});
 
-        socket.emit(
-            "world_update",
-            worldModel
-        );
-
-        socket.on(
-            "disconnect",
-            () => {
-
-                console.log(
-                    "Client disconnected:",
-                    socket.id
-                );
-            }
-        );
-    }
-);
-// Remove devices that have not sent a heartbeat for 15 seconds
 setInterval(() => {
     const now = Date.now();
     let changed = false;
@@ -755,6 +756,21 @@ setInterval(() => {
 
         if (now - lastSeen > 15000) {
             console.log(`Device offline: ${hostname}`);
+            const disconnectIso = new Date().toISOString();
+
+            const activeSession = deviceHistory.find(
+                (s) => s.hostname === hostname && s.status === "ONLINE"
+            );
+            if (activeSession) {
+                activeSession.status = "OFFLINE";
+                activeSession.disconnectedAt = disconnectIso;
+                activeSession.lastSeen = worldModel.devices[hostname].lastSeen || disconnectIso;
+                const durSec = Math.max(
+                    0,
+                    Math.floor((new Date(disconnectIso) - new Date(activeSession.connectedAt)) / 1000)
+                );
+                activeSession.duration = formatDuration(durSec);
+            }
 
             delete worldModel.devices[hostname];
             changed = true;
@@ -762,33 +778,14 @@ setInterval(() => {
     }
 
     if (changed) {
+        saveDeviceHistory();
         io.emit("world_update", worldModel);
+        io.emit("device_history_update", {
+            action: "disconnected",
+            history: getDeviceHistorySummary()
+        });
     }
 }, 5000);
-
-
-// ==========================================
-// FRONTEND (built dist served on same port)
-// ==========================================
-
-const distDir = path.join(
-    __dirname,
-    "..",
-    "frontend",
-    "dist"
-);
-
-if (fs.existsSync(
-    path.join(distDir, "index.html")
-)) {
-    app.use(express.static(distDir));
-
-    app.get("/*splat", (req, res) => {
-        res.sendFile(
-            path.join(distDir, "index.html")
-        );
-    });
-}
 
 
 const { startDiscoveryBeacon } = require("./discovery");
@@ -801,16 +798,12 @@ server.listen(
     5000,
     "0.0.0.0",
     () => {
+        console.log("JARVIS backend running on port 5000");
 
-        console.log(
-            "JARVIS backend running on port 5000"
-        );
-
-        // Start UDP auto-discovery beacon on LAN
         try {
             startDiscoveryBeacon(5000);
         } catch (e) {
             console.error("Could not start discovery beacon:", e.message);
         }
     }
-);
+);
